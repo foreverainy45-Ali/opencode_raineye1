@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "raineye: build",
+      "type": "npm",
+      "script": "build",
+      "path": "opencode-raineye",
+      "group": "build",
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

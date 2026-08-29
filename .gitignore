@@ -1,0 +1,10 @@
+node_modules/
+opencode-raineye/node_modules/
+opencode-raineye/dist/
+opencode-raineye/.vite/
+out/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+

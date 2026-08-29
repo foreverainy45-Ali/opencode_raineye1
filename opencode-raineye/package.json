@@ -1,0 +1,217 @@
+{
+  "name": "opencode-raineye",
+  "displayName": "OpenCode RainEye",
+  "description": "A CodeBuddy-style VS Code client for the official OpenCode server.",
+  "version": "0.1.0",
+  "publisher": "foreverainy45-ali",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:foreverainy45-Ali/opencode_raineye1.git"
+  },
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "opencode",
+    "agent",
+    "coding assistant",
+    "mcp",
+    "skills"
+  ],
+  "activationEvents": [
+    "onView:opencodeRaineye.chat",
+    "onCommand:opencodeRaineye.openSidebar"
+  ],
+  "main": "./dist/extension.js",
+  "icon": "media/icon.png",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opencodeRaineye",
+          "title": "OpenCode RainEye",
+          "icon": "media/icons/raineye.svg"
+        }
+      ]
+    },
+    "views": {
+      "opencodeRaineye": [
+        {
+          "id": "opencodeRaineye.chat",
+          "name": "RainEye",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opencodeRaineye.openSidebar",
+        "title": "Open RainEye",
+        "category": "OpenCode RainEye"
+      },
+      {
+        "command": "opencodeRaineye.newChat",
+        "title": "New Chat",
+        "category": "OpenCode RainEye",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opencodeRaineye.showHistory",
+        "title": "Show Chat History",
+        "category": "OpenCode RainEye",
+        "icon": "$(history)"
+      },
+      {
+        "command": "opencodeRaineye.openSettings",
+        "title": "Open Settings",
+        "category": "OpenCode RainEye",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "opencodeRaineye.reconnect",
+        "title": "Reconnect OpenCode",
+        "category": "OpenCode RainEye"
+      },
+      {
+        "command": "opencodeRaineye.openTui",
+        "title": "Open Official OpenCode TUI",
+        "category": "OpenCode RainEye"
+      },
+      {
+        "command": "opencodeRaineye.insertFileReference",
+        "title": "Insert File Reference",
+        "category": "OpenCode RainEye"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "opencodeRaineye.newChat",
+          "when": "view == opencodeRaineye.chat",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opencodeRaineye.showHistory",
+          "when": "view == opencodeRaineye.chat",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opencodeRaineye.openSettings",
+          "when": "view == opencodeRaineye.chat",
+          "group": "navigation@3"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "opencodeRaineye.insertFileReference",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "opencodeRaineye.openSidebar",
+        "key": "ctrl+escape",
+        "mac": "cmd+escape"
+      },
+      {
+        "command": "opencodeRaineye.insertFileReference",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k"
+      }
+    ],
+    "configuration": {
+      "title": "OpenCode RainEye",
+      "properties": {
+        "opencodeRaineye.command": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Absolute path to opencode executable. Empty means auto-detect."
+        },
+        "opencodeRaineye.serverUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Optional OpenCode server URL used by automatic discovery."
+        },
+        "opencodeRaineye.serverPort": {
+          "type": "number",
+          "default": 4096,
+          "minimum": 1,
+          "maximum": 65535,
+          "scope": "machine",
+          "description": "Default localhost OpenCode server port."
+        },
+        "opencodeRaineye.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Offer to start a managed OpenCode server when discovery finds none."
+        },
+        "opencodeRaineye.defaultMode": {
+          "type": "string",
+          "enum": [
+            "craft",
+            "plan"
+          ],
+          "default": "craft",
+          "scope": "window",
+          "description": "Default agent mode for a new chat."
+        },
+        "opencodeRaineye.logLevel": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug"
+          ],
+          "default": "info",
+          "scope": "window",
+          "description": "RainEye diagnostic log level."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "typecheck:extension": "tsc -p tsconfig.json --noEmit",
+    "typecheck:webview": "tsc -p tsconfig.webview.json --noEmit",
+    "typecheck": "npm run typecheck:extension && npm run typecheck:webview",
+    "build:extension": "node esbuild.mjs",
+    "build:webview": "vite build",
+    "build": "npm run clean && npm run typecheck && npm run build:extension && npm run build:webview",
+    "watch:extension": "node esbuild.mjs --watch",
+    "watch:webview": "vite build --watch",
+    "test": "vitest run",
+    "vscode:prepublish": "npm run build",
+    "package-vsix": "vsce package --no-dependencies -o ../out/opencode-raineye-0.1.0.vsix",
+    "verify-vsix": "node scripts/verify-vsix.mjs ../out/opencode-raineye-0.1.0.vsix"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "1.18.25",
+    "dompurify": "^3.2.6",
+    "marked": "^16.2.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@types/vscode": "^1.94.0",
+    "@vitejs/plugin-react": "^5.0.2",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4",
+    "vitest": "^3.2.4"
+  }
+}
