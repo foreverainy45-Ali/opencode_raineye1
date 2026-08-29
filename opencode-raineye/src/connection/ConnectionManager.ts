@@ -5,6 +5,7 @@ import { Logger } from "../services/Logger";
 import { enumerateLocalListeningEndpoints } from "./LocalEndpointDiscovery";
 import { discoverMdnsEndpoints } from "./MdnsDiscovery";
 import { ManagedServer } from "./ManagedServer";
+import { findOpenCodeProcessIds } from "./OpenCodeProcessDiscovery";
 import {
   mapWithConcurrency,
   pathMatchesWorkspace,
@@ -132,21 +133,27 @@ export class ConnectionManager implements vscode.Disposable {
       }
     }
 
-    this.setState({ phase: "disconnected", message: "未发现 OpenCode，可新建进程或手动连接。" });
+    const processIds = await findOpenCodeProcessIds().catch((error) => {
+      this.logger.debug("OpenCode process diagnostic failed", error);
+      return [];
+    });
+    if (processIds.length) {
+      this.logger.info("Found OpenCode processes without a verified HTTP endpoint", { processIds });
+      this.setState({
+        phase: "disconnected",
+        message: `检测到 ${processIds.length} 个 OpenCode 进程，但没有可连接的 Server 端口。请使用 opencode --port 0 启动 TUI，或点击“新建本机进程”。`,
+      });
+    } else {
+      this.setState({ phase: "disconnected", message: "未发现 OpenCode Server，可新建进程或手动连接。" });
+    }
     return undefined;
   }
 
   async reconnect(): Promise<ActiveConnection | undefined> {
-    const endpoint = this.currentState.endpoint;
-    if (!endpoint) return await this.discover();
-    try {
-      return await this.connect(endpoint, this.currentState.source ?? "manual", this.password, true, {
-        pid: this.currentState.pid,
-        workspacePath: this.currentState.workspacePath,
-      });
-    } catch {
-      return undefined;
-    }
+    // This action is labelled “自动发现” in the UI. Always rebuild the complete
+    // candidate set so a server started after activation can be found, even if
+    // the previous state still contains a stale/manual endpoint.
+    return await this.discover();
   }
 
   async connectManual(host: string, port: number, password?: string): Promise<ActiveConnection> {

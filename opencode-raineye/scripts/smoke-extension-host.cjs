@@ -1,6 +1,10 @@
 const Module = require("node:module");
 const path = require("node:path");
 
+// Keep activation smoke deterministic even when real OpenCode servers are
+// listening on the developer machine. Discovery behavior has separate tests.
+global.fetch = async () => new Response(undefined, { status: 404 });
+
 class FakeEventEmitter {
   constructor() {
     this.listeners = new Set();
@@ -46,6 +50,7 @@ const vscodeMock = {
     showErrorMessage: async () => undefined,
     showInformationMessage: async () => undefined,
     showWarningMessage: async () => undefined,
+    showQuickPick: async (items) => items[0],
   },
   workspace: {
     workspaceFolders: [{ name: "smoke", uri: { fsPath: workspacePath, path: workspacePath } }],
