@@ -10,6 +10,9 @@ const info = await stat(path)
 if (info.size < 10_000) throw new Error(`VSIX is unexpectedly small: ${info.size} bytes`)
 const manifestPath = new URL("../package.json", import.meta.url)
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+if (manifest.type === "module" && String(manifest.main ?? "").endsWith(".js")) {
+  throw new Error("CommonJS extension.js cannot be packaged with package.json type=module")
+}
 if (!/^[a-z0-9][a-z0-9-]*$/.test(manifest.publisher ?? "")) {
   throw new Error(`Invalid extension publisher: ${String(manifest.publisher)}`)
 }

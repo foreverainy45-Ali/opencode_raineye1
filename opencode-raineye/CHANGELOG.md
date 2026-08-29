@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-29
+
+- 修复 `package.json` 将 CommonJS 扩展入口错误声明为 ESM，导致扩展激活失败、命令未注册和侧栏不显示的问题。
+- VSIX 验证新增 Extension Host 模块格式冲突检查。
+
 ## 0.1.0 - 2026-08-29
 
 - 首个可安装 MVP。

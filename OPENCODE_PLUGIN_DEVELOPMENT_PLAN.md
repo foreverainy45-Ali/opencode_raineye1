@@ -1,6 +1,6 @@
 # OpenCode RainEye 插件开发方案
 
-> 文档状态：0.1.0 MVP 已实现并通过构建、单测、VSIX 与 OpenCode 1.18.25 API 冒烟验证  
+> 文档状态：0.1.1 MVP 已实现并通过构建、单测、扩展激活、VSIX 与 OpenCode 1.18.25 API 冒烟验证
 > 生成日期：2026-08-29  
 > 目标平台：VS Code，首发环境为 Windows 11 + OpenCode CLI 1.18.25  
 > 参考基线：`sst-dev.opencode-0.0.13.vsix`、`界面页.png`、本目录既有需求/审计/计划文档、OpenCode 官方 Server/SDK 文档

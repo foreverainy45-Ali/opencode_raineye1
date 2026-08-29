@@ -2,7 +2,7 @@
 
 OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界面参考 CodeBuddy，但会话、模型、Agent、Skill、MCP、权限请求与 Diff 都直接来自官方 OpenCode Server；扩展不实现第二套 Agent Runtime、Skill Loader 或 MCP Client。
 
-当前版本：`0.1.0`，首个验证目标为 VS Code 1.94+、Windows 11 与 OpenCode 1.18.25。
+当前版本：`0.1.1`，首个验证目标为 VS Code 1.94+、Windows 11 与 OpenCode 1.18.25。
 
 ## 已实现
 
@@ -23,7 +23,7 @@ OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界�
 
 - `opencode-raineye/`：扩展源码、测试与构建脚本。
 - `.vscode/`：从仓库根目录启动 Extension Development Host 的配置。
-- `out/opencode-raineye-0.1.0.vsix`：本地构建产物，默认不提交 Git。
+- `out/opencode-raineye-0.1.1.vsix`：本地构建产物，默认不提交 Git。
 - `sst-dev.opencode-0.0.13.vsix`、`vsix_extracted/`：官方插件参考基线。
 - `界面页.png`：界面参考图。
 
@@ -43,7 +43,7 @@ npm.cmd run verify-vsix
 安装本地包：
 
 ```powershell
-code.cmd --install-extension out\opencode-raineye-0.1.0.vsix
+code.cmd --install-extension out\opencode-raineye-0.1.1.vsix --force
 ```
 
 打包后的扩展 ID 为 `foreverainy45-ali.opencode-raineye`。
@@ -68,4 +68,3 @@ code.cmd --install-extension out\opencode-raineye-0.1.0.vsix
 - Server Password 仅保存在当前扩展运行内存，不写入 Webview 状态。
 - Webview 发来的路径只能在当前工作区内打开。
 - 权限审批不是操作系统沙箱；批准命令后，OpenCode 仍以当前本机用户权限运行。
-

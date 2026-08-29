@@ -2,9 +2,8 @@
   "name": "opencode-raineye",
   "displayName": "OpenCode RainEye",
   "description": "A CodeBuddy-style VS Code client for the official OpenCode server.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "foreverainy45-ali",
-  "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -187,13 +186,14 @@
     "typecheck": "npm run typecheck:extension && npm run typecheck:webview",
     "build:extension": "node esbuild.mjs",
     "build:webview": "vite build",
-    "build": "npm run clean && npm run typecheck && npm run build:extension && npm run build:webview",
+    "smoke:extension": "node scripts/smoke-extension-host.cjs",
+    "build": "npm run clean && npm run typecheck && npm run build:extension && npm run build:webview && npm run smoke:extension",
     "watch:extension": "node esbuild.mjs --watch",
     "watch:webview": "vite build --watch",
     "test": "vitest run",
     "vscode:prepublish": "npm run build",
-    "package-vsix": "vsce package --no-dependencies -o ../out/opencode-raineye-0.1.0.vsix",
-    "verify-vsix": "node scripts/verify-vsix.mjs ../out/opencode-raineye-0.1.0.vsix"
+    "package-vsix": "vsce package --no-dependencies -o ../out/opencode-raineye-0.1.1.vsix",
+    "verify-vsix": "node scripts/verify-vsix.mjs ../out/opencode-raineye-0.1.1.vsix"
   },
   "dependencies": {
     "@opencode-ai/sdk": "1.18.25",
