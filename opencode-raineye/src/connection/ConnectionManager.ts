@@ -294,6 +294,12 @@ export class ConnectionManager implements vscode.Disposable {
 
   private async selectCandidate<T extends CandidateResult>(candidates: T[], placeHolder: string): Promise<T | undefined> {
     if (candidates.length === 1) return candidates[0];
+    this.logger.info("Waiting for OpenCode instance selection", candidates.map((item) => ({
+      endpoint: item.candidate.endpoint,
+      pid: item.candidate.pid,
+      source: item.candidate.source,
+      status: item.probe.status,
+    })));
     const picked = await vscode.window.showQuickPick(
       candidates.map((item) => {
         const healthy = item.probe.status === "healthy" ? item.probe : undefined;
@@ -307,7 +313,16 @@ export class ConnectionManager implements vscode.Disposable {
           item,
         };
       }),
-      { placeHolder, matchOnDescription: true, matchOnDetail: true },
+      {
+        title: "RainEye：选择 OpenCode 进程",
+        placeHolder,
+        matchOnDescription: true,
+        matchOnDetail: true,
+        ignoreFocusOut: true,
+      },
+    );
+    this.logger.info(
+      picked ? `Selected OpenCode instance: ${picked.item.candidate.endpoint}` : "OpenCode instance selection was cancelled",
     );
     return picked?.item;
   }

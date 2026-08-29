@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AttachmentView, HostToWebviewMessage, UiSnapshot, ViewSection } from "../shared/protocol";
+import type { AttachmentView, FileSuggestion, HostToWebviewMessage, UiSnapshot, ViewSection } from "../shared/protocol";
 import { Composer } from "./components/Composer";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { Conversation } from "./components/Conversation";
@@ -14,6 +14,7 @@ export function App(): React.JSX.Element {
   const [attachments, setAttachments] = useState<AttachmentView[]>([]);
   const [focusToken, setFocusToken] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [fileSuggestions, setFileSuggestions] = useState<{ requestId: number; query: string; files: FileSuggestion[] }>({ requestId: 0, query: "", files: [] });
 
   useEffect(() => {
     const listener = (event: MessageEvent<HostToWebviewMessage>) => {
@@ -27,6 +28,9 @@ export function App(): React.JSX.Element {
         setFocusToken((value) => value + 1);
       }
       if (message.type === "focus-composer") setFocusToken((value) => value + 1);
+      if (message.type === "file-suggestions") {
+        setFileSuggestions((current) => message.requestId >= current.requestId ? message : current);
+      }
       if (message.type === "toast") {
         const id = Date.now();
         setToasts((current) => [...current, { id, level: message.level, message: message.message }]);
@@ -61,7 +65,7 @@ export function App(): React.JSX.Element {
         : snapshot.section === "history"
           ? <History sessions={snapshot.sessions} currentSessionId={snapshot.currentSessionId} />
           : snapshot.section === "settings"
-            ? <Settings settings={snapshot.settings} connection={snapshot.connection} mcps={snapshot.mcps} skills={snapshot.skills} />
+            ? <Settings settings={snapshot.settings} connection={snapshot.connection} mcps={snapshot.mcps} skills={snapshot.skills} models={snapshot.models} />
             : (
               <main className="chat-page">
                 <div className="chat-heading">
@@ -79,6 +83,7 @@ export function App(): React.JSX.Element {
                   attachments={attachments}
                   busy={snapshot.busy}
                   focusToken={focusToken}
+                  fileSuggestions={fileSuggestions}
                   onRemoveAttachment={(id) => setAttachments((current) => current.filter((item) => item.id !== id))}
                   onSent={() => setAttachments([])}
                 />

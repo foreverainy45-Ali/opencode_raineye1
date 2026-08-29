@@ -19,6 +19,7 @@ import {
   AgentOption,
   AttachmentView,
   ChatMode,
+  CustomModelInput,
   DiffView,
   McpInput,
   McpServerView,
@@ -28,10 +29,12 @@ import {
   QuestionView,
   SessionSummary,
   SkillOption,
+  SkillInput,
   UiMessage,
   UiMessagePart,
 } from "../shared/protocol";
 import { Logger } from "../services/Logger";
+import { buildCustomProviderConfig } from "./CustomProviderConfig";
 
 export interface Catalog {
   models: ModelOption[];
@@ -243,6 +246,43 @@ export class OpenCodeAdapter {
     const { name, scope, ...config } = input;
     const payload = { mcp: { [name]: config } } as Config;
     if (scope === "global") {
+      await this.client.global.config.update<true>({ config: payload });
+    } else {
+      await this.client.config.update<true>({ directory: this.directory, config: payload });
+    }
+    // Config files are startup-loaded, while the native MCP.add route updates the
+    // running instance. Use both so the server is usable now and after restart.
+    await this.client.mcp.add<true>({ directory: this.directory, name, config });
+  }
+
+  async saveSkillSource(input: Extract<SkillInput, { kind: "path" | "url" }>): Promise<void> {
+    const current = input.scope === "global"
+      ? (await this.client.global.config.get<true>()).data
+      : (await this.client.config.get<true>({ directory: this.directory })).data;
+    const key = input.kind === "path" ? "paths" : "urls";
+    const existing = current.skills?.[key] ?? [];
+    const value = input.value.trim();
+    const payload = {
+      skills: {
+        ...current.skills,
+        [key]: [...new Set([...existing, value])],
+      },
+    } as Config;
+    if (input.scope === "global") {
+      await this.client.global.config.update<true>({ config: payload });
+    } else {
+      await this.client.config.update<true>({ directory: this.directory, config: payload });
+    }
+  }
+
+  async saveCustomModel(input: CustomModelInput): Promise<void> {
+    const current = input.scope === "global"
+      ? (await this.client.global.config.get<true>()).data
+      : (await this.client.config.get<true>({ directory: this.directory })).data;
+    const existingProvider = current.provider?.[input.providerId];
+    const provider = buildCustomProviderConfig(existingProvider, input);
+    const payload = { provider: { [input.providerId.trim()]: provider } } as Config;
+    if (input.scope === "global") {
       await this.client.global.config.update<true>({ config: payload });
     } else {
       await this.client.config.update<true>({ directory: this.directory, config: payload });

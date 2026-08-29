@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 - 2026-08-29
+
+- 设置页支持创建项目/全局 OpenCode Skill，以及注册 `skills.paths` 和 `skills.urls`。
+- 设置页支持以 Base URL、API Key、Provider/Model ID 配置 OpenCode 原生 OpenAI-compatible 自定义模型。
+- Composer 支持输入 `@` 自动检索并补全工作区路径。
+- MCP 保存后调用 OpenCode 原生动态添加接口，当前进程立即连接，同时保留持久化配置。
+- 附带可返回“测试成功”的零依赖 Python MCP 和 Python Skill 示例。
+- 多实例选择框保持显示，输出日志记录候选与选择结果。
+
 ## 0.2.1 - 2026-08-29
 
 - “自动发现”始终重新枚举全部候选，可发现插件激活后才启动的 Server。

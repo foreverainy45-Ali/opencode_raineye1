@@ -169,6 +169,11 @@ export interface AttachmentView {
   dataUrl?: string;
 }
 
+export interface FileSuggestion {
+  path: string;
+  name: string;
+}
+
 export interface SettingsView {
   command: string;
   serverUrl: string;
@@ -206,6 +211,7 @@ export type HostToWebviewMessage =
   | { type: "snapshot"; snapshot: UiSnapshot }
   | { type: "toast"; level: "info" | "warning" | "error"; message: string }
   | { type: "insert-reference"; attachment: AttachmentView }
+  | { type: "file-suggestions"; requestId: number; query: string; files: FileSuggestion[] }
   | { type: "focus-composer" };
 
 export interface LocalMcpInput {
@@ -238,6 +244,35 @@ export interface RemoteMcpInput {
 
 export type McpInput = LocalMcpInput | RemoteMcpInput;
 
+export type SkillInput =
+  | {
+    kind: "create";
+    scope: "project" | "global";
+    name: string;
+    description: string;
+    instructions: string;
+  }
+  | {
+    kind: "path" | "url";
+    scope: "project" | "global";
+    value: string;
+  };
+
+export interface CustomModelInput {
+  scope: "project" | "global";
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  modelName: string;
+  baseUrl: string;
+  apiKey?: string;
+  npm: "@ai-sdk/openai-compatible" | "@ai-sdk/openai";
+  contextLimit?: number;
+  outputLimit?: number;
+  supportsImages?: boolean;
+  reasoning?: boolean;
+}
+
 export type PermissionReply = "once" | "always" | "reject";
 
 export type WebviewToHostMessage =
@@ -253,6 +288,7 @@ export type WebviewToHostMessage =
   | { type: "abort" }
   | { type: "select-file" }
   | { type: "select-image" }
+  | { type: "search-files"; requestId: number; query: string }
   | { type: "open-file"; path: string; line?: number }
   | { type: "show-diff"; file: string }
   | { type: "reply-permission"; requestId: string; reply: PermissionReply }
@@ -260,6 +296,8 @@ export type WebviewToHostMessage =
   | { type: "reject-question"; requestId: string }
   | { type: "save-settings"; settings: SettingsView }
   | { type: "save-mcp"; mcp: McpInput }
+  | { type: "save-skill"; skill: SkillInput }
+  | { type: "save-custom-model"; model: CustomModelInput }
   | { type: "connect-mcp"; name: string }
   | { type: "disconnect-mcp"; name: string }
   | { type: "authenticate-mcp"; name: string }
@@ -284,6 +322,11 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
     case "open-tui":
     case "open-output":
       return true;
+    case "search-files":
+      return Number.isInteger(message.requestId)
+        && Number(message.requestId) >= 0
+        && typeof message.query === "string"
+        && message.query.length <= 256;
     case "navigate":
       return message.section === "chat" || message.section === "history" || message.section === "settings";
     case "connect-manual":
@@ -316,6 +359,10 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
       return isSettings(message.settings);
     case "save-mcp":
       return isMcp(message.mcp);
+    case "save-skill":
+      return isSkillInput(message.skill);
+    case "save-custom-model":
+      return isCustomModelInput(message.model);
     case "connect-mcp":
     case "disconnect-mcp":
     case "authenticate-mcp":
@@ -369,6 +416,67 @@ function isMcp(value: unknown): value is McpInput {
     }
   }
   return false;
+}
+
+function isSkillInput(value: unknown): value is SkillInput {
+  if (!value || typeof value !== "object") return false;
+  const skill = value as Record<string, unknown>;
+  if (skill.kind === "create") {
+    return (skill.scope === "project" || skill.scope === "global")
+      && typeof skill.name === "string"
+      && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skill.name)
+      && skill.name.length <= 64
+      && typeof skill.description === "string"
+      && skill.description.trim().length >= 1
+      && skill.description.length <= 1024
+      && typeof skill.instructions === "string"
+      && skill.instructions.trim().length > 0
+      && skill.instructions.length <= 1_000_000;
+  }
+  return (skill.kind === "path" || skill.kind === "url")
+    && (skill.scope === "project" || skill.scope === "global")
+    && typeof skill.value === "string"
+    && skill.value.trim().length > 0
+    && skill.value.length <= 4096
+    && (skill.kind !== "url" || isHttpUrl(skill.value));
+}
+
+function isCustomModelInput(value: unknown): value is CustomModelInput {
+  if (!value || typeof value !== "object") return false;
+  const model = value as Record<string, unknown>;
+  return (model.scope === "project" || model.scope === "global")
+    && typeof model.providerId === "string"
+    && /^[a-zA-Z0-9._-]+$/.test(model.providerId)
+    && model.providerId.length <= 128
+    && typeof model.providerName === "string"
+    && model.providerName.trim().length > 0
+    && typeof model.modelId === "string"
+    && model.modelId.trim().length > 0
+    && model.modelId.length <= 256
+    && typeof model.modelName === "string"
+    && model.modelName.trim().length > 0
+    && typeof model.baseUrl === "string"
+    && isHttpUrl(model.baseUrl)
+    && optionalString(model.apiKey)
+    && (model.npm === "@ai-sdk/openai-compatible" || model.npm === "@ai-sdk/openai")
+    && optionalPositiveInteger(model.contextLimit)
+    && optionalPositiveInteger(model.outputLimit)
+    && (model.supportsImages === undefined || typeof model.supportsImages === "boolean")
+    && (model.reasoning === undefined || typeof model.reasoning === "boolean");
+}
+
+function isHttpUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function optionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || (Number.isInteger(value) && Number(value) > 0);
 }
 
 function optionalString(value: unknown): boolean {

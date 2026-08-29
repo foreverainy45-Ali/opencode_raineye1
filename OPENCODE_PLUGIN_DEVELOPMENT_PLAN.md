@@ -1,6 +1,6 @@
 # OpenCode RainEye 插件开发方案
 
-> 文档状态：0.1.1 MVP 已实现并通过构建、单测、扩展激活、VSIX 与 OpenCode 1.18.25 API 冒烟验证
+> 文档状态：0.3.0 已实现并通过构建、单测、扩展激活、VSIX 与 OpenCode 1.18.25 API 冒烟验证
 > 生成日期：2026-08-29  
 > 目标平台：VS Code，首发环境为 Windows 11 + OpenCode CLI 1.18.25  
 > 参考基线：`sst-dev.opencode-0.0.13.vsix`、`界面页.png`、本目录既有需求/审计/计划文档、OpenCode 官方 Server/SDK 文档
@@ -11,6 +11,8 @@
 - Craft 采用执行前 Permission 审批，执行完成后展示 Diff。
 - 连接时先自动发现；未发现时允许新建 managed server，或手动连接“本机 + 端口”“URL + 端口”。
 - Skill 与 MCP 完全采用 OpenCode 1.18.25 官方配置 schema 和进程实现；RainEye 只提供配置 UI、调用官方 API 和展示官方状态。
+
+0.3.0 增量：设置页已支持项目/全局 Skill、`skills.paths` / `skills.urls`、OpenAI-compatible 自定义 Provider/Model；Composer 已支持 `@` 工作区文件补全。仓库同时包含可实际连接的 Python MCP 与调用 Python 脚本的 Skill 测试样例。
 
 ## 1. 结论摘要
 

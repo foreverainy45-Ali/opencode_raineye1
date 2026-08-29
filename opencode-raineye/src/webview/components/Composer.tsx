@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AttachmentView, ChatMode, ModelOption, SkillOption } from "../../shared/protocol";
+import type { AttachmentView, ChatMode, FileSuggestion, ModelOption, SkillOption } from "../../shared/protocol";
 import { post } from "../vscode";
 
 export function Composer({
@@ -11,6 +11,7 @@ export function Composer({
   attachments,
   busy,
   focusToken,
+  fileSuggestions,
   onRemoveAttachment,
   onSent,
 }: {
@@ -22,6 +23,7 @@ export function Composer({
   attachments: AttachmentView[];
   busy: boolean;
   focusToken: number;
+  fileSuggestions: { requestId: number; query: string; files: FileSuggestion[] };
   onRemoveAttachment(id: string): void;
   onSent(): void;
 }): React.JSX.Element {
@@ -30,7 +32,10 @@ export function Composer({
   const [model, setModel] = useState(selectedModel ?? "");
   const [skill, setSkill] = useState(selectedSkill ?? "");
   const [height, setHeight] = useState(190);
+  const [mention, setMention] = useState<{ start: number; end: number; query: string }>();
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const suggestionRequest = useRef(0);
   const drag = useRef<{ y: number; height: number } | undefined>(undefined);
 
   useEffect(() => setMode(initialMode), [initialMode]);
@@ -63,8 +68,37 @@ export function Composer({
       attachments,
     });
     setText("");
+    setMention(undefined);
     onSent();
   };
+
+  const updateMention = (value: string, cursor: number) => {
+    const next = findMention(value, cursor);
+    setMention(next);
+    setSuggestionIndex(0);
+    if (next) {
+      const requestId = ++suggestionRequest.current;
+      post({ type: "search-files", requestId, query: next.query });
+    }
+  };
+
+  const applySuggestion = (file: FileSuggestion) => {
+    if (!mention) return;
+    const before = text.slice(0, mention.start);
+    const after = text.slice(mention.end);
+    const reference = `@${file.path}`;
+    const separator = after && !/^\s/.test(after) ? " " : "";
+    const next = `${before}${reference}${separator}${after}`;
+    const cursor = before.length + reference.length + separator.length;
+    setText(next);
+    setMention(undefined);
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(cursor, cursor);
+    });
+  };
+
+  const visibleSuggestions = mention && fileSuggestions.query === mention.query ? fileSuggestions.files : [];
 
   return (
     <div className="composer-wrap" style={{ height }}>
@@ -90,11 +124,60 @@ export function Composer({
             ))}
           </div>
         )}
+        {mention && visibleSuggestions.length > 0 && (
+          <div className="mention-suggestions" role="listbox" aria-label="工作区文件">
+            {visibleSuggestions.map((file, index) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={index === suggestionIndex}
+                className={index === suggestionIndex ? "active" : ""}
+                key={file.path}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  applySuggestion(file);
+                }}
+              ><strong>{file.name}</strong><span>{file.path}</span></button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            updateMention(event.target.value, event.target.selectionStart);
+          }}
+          onClick={(event) => updateMention(event.currentTarget.value, event.currentTarget.selectionStart)}
+          onKeyUp={(event) => {
+            if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+              updateMention(event.currentTarget.value, event.currentTarget.selectionStart);
+            }
+          }}
           onKeyDown={(event) => {
+            if (mention && visibleSuggestions.length) {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setSuggestionIndex((value) => (value + 1) % visibleSuggestions.length);
+                return;
+              }
+              if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setSuggestionIndex((value) => (value - 1 + visibleSuggestions.length) % visibleSuggestions.length);
+                return;
+              }
+              if (event.key === "Enter" || event.key === "Tab") {
+                event.preventDefault();
+                const selected = visibleSuggestions[suggestionIndex];
+                if (selected) applySuggestion(selected);
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setMention(undefined);
+                return;
+              }
+            }
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               send();
@@ -128,4 +211,15 @@ export function Composer({
       </div>
     </div>
   );
+}
+
+function findMention(value: string, cursor: number): { start: number; end: number; query: string } | undefined {
+  const prefix = value.slice(0, cursor);
+  const start = prefix.lastIndexOf("@");
+  if (start < 0) return undefined;
+  const query = prefix.slice(start + 1);
+  if (/\s/.test(query)) return undefined;
+  const preceding = start > 0 ? prefix[start - 1] : undefined;
+  if (preceding && /[a-zA-Z0-9._%+-]/.test(preceding)) return undefined;
+  return { start, end: cursor, query };
 }

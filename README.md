@@ -2,20 +2,21 @@
 
 OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界面参考 CodeBuddy，但会话、模型、Agent、Skill、MCP、权限请求与 Diff 都直接来自官方 OpenCode Server；扩展不实现第二套 Agent Runtime、Skill Loader 或 MCP Client。
 
-当前版本：`0.1.1`，首个验证目标为 VS Code 1.94+、Windows 11 与 OpenCode 1.18.25。
+当前版本：`0.3.0`，首个验证目标为 VS Code 1.94+、Windows 11 与 OpenCode 1.18.25。
 
 ## 已实现
 
 - Activity Bar 原生 View Container 与轻量 WebviewView 聊天界面。
 - 新增对话、历史对话、设置页和官方 TUI 入口。
-- 自动发现已配置地址、上次连接、官方插件终端端口与默认本机端口。
+- 自动发现已配置地址、托管实例元数据、上次连接、Terminal 环境变量、可选 mDNS、本机 LISTENING 端口与默认端口；多个实例时明确选择。
 - 未发现进程时，可启动扩展托管的 `opencode serve`，或手动填写本机/远程 URL、端口和密码。
 - OpenCode 全局 SSE 事件、消息、Tool/Reasoning/File/Patch 渲染、停止生成与恢复会话。
-- 可上下拖动的 Composer；上方悬挂 `@文件` 与图片附件；底部选择 Craft/Plan、模型与 Skill。
+- 可上下拖动的 Composer；输入 `@` 自动补全工作区路径，上方悬挂文件与图片附件；底部选择 Craft/Plan、模型与 Skill。
 - Craft 使用 OpenCode 原生 Permission，在 `edit`/`bash` 执行前审批；结束后显示官方 Session Diff。
 - Plan 映射官方 `plan` Agent，并关闭修改/命令类工具。
-- MCP 设置严格使用官方 `local`/`remote` schema；远程 HTTP/SSE 回退与 OAuth 由 OpenCode 进程处理。
-- Skill 列表来自官方 `/skill`；Skill 正文只由 OpenCode 原生 `skill` Tool 按需加载。
+- MCP 设置严格使用官方 `local`/`remote` schema；保存时持久化配置并通过官方动态 API 接入当前进程。
+- Skill 列表来自官方 `/skill`；设置页可创建项目/全局 Skill 或注册 `skills.paths` / `skills.urls`。
+- 自定义模型表单写入 OpenCode 原生 Provider 配置，支持 Base URL、API Key、OpenAI-compatible/Responses 和模型能力参数。
 
 详细设计与已确认边界见 [OPENCODE_PLUGIN_DEVELOPMENT_PLAN.md](./OPENCODE_PLUGIN_DEVELOPMENT_PLAN.md)。
 
@@ -23,7 +24,9 @@ OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界�
 
 - `opencode-raineye/`：扩展源码、测试与构建脚本。
 - `.vscode/`：从仓库根目录启动 Extension Development Host 的配置。
-- `out/opencode-raineye-0.1.1.vsix`：本地构建产物，默认不提交 Git。
+- `examples/python-mcp/`：返回“测试成功”的零依赖 Python MCP 与可粘贴配置。
+- `.opencode/skills/raineye-python-test/`：调用 Python 脚本的 OpenCode Skill 示例。
+- `out/opencode-raineye-0.3.0.vsix`：本地构建产物，默认不提交 Git。
 - `sst-dev.opencode-0.0.13.vsix`、`vsix_extracted/`：官方插件参考基线。
 - `界面页.png`：界面参考图。
 
@@ -43,7 +46,7 @@ npm.cmd run verify-vsix
 安装本地包：
 
 ```powershell
-code.cmd --install-extension out\opencode-raineye-0.1.1.vsix --force
+code.cmd --install-extension out\opencode-raineye-0.3.0.vsix --force
 ```
 
 打包后的扩展 ID 为 `foreverainy45-ali.opencode-raineye`。

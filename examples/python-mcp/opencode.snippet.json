@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "raineye-python-test": {
+      "type": "local",
+      "command": [
+        "python",
+        "./examples/python-mcp/server.py"
+      ],
+      "enabled": true,
+      "timeout": 10000
+    }
+  }
+}

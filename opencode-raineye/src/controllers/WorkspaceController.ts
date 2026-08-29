@@ -1,14 +1,20 @@
 import * as path from "node:path";
+import * as os from "node:os";
 import * as vscode from "vscode";
 import { ConnectionManager, type ActiveConnection } from "../connection/ConnectionManager";
 import { OpenCodeAdapter } from "../opencode/OpenCodeAdapter";
+import { renderSkillMarkdown } from "../opencode/SkillFile";
 import { Logger } from "../services/Logger";
 import {
   AttachmentView,
   ChatMode,
+  CustomModelInput,
+  FileSuggestion,
+  HostToWebviewMessage,
   McpInput,
   PermissionReply,
   SettingsView,
+  SkillInput,
   UiSnapshot,
   ViewSection,
   WebviewToHostMessage,
@@ -24,6 +30,7 @@ export class WorkspaceController implements vscode.Disposable {
   private adapter?: OpenCodeAdapter;
   private refreshTimer?: NodeJS.Timeout;
   private eventRetryTimer?: NodeJS.Timeout;
+  private workspaceFileCache?: { loadedAt: number; files: FileSuggestion[] };
   private disposed = false;
   private snapshot: UiSnapshot;
 
@@ -75,7 +82,7 @@ export class WorkspaceController implements vscode.Disposable {
     await this.connection.discover();
   }
 
-  async handle(message: WebviewToHostMessage): Promise<AttachmentView | undefined> {
+  async handle(message: WebviewToHostMessage): Promise<HostToWebviewMessage | undefined> {
     switch (message.type) {
       case "ready":
         this.emit();
@@ -108,9 +115,16 @@ export class WorkspaceController implements vscode.Disposable {
         await this.abort();
         return;
       case "select-file":
-        return await this.selectFile();
+        return attachmentMessage(await this.selectFile());
       case "select-image":
-        return await this.selectImage();
+        return attachmentMessage(await this.selectImage());
+      case "search-files":
+        return {
+          type: "file-suggestions",
+          requestId: message.requestId,
+          query: message.query,
+          files: await this.searchWorkspaceFiles(message.query),
+        };
       case "open-file":
         await this.openFile(message.path, message.line);
         return;
@@ -131,6 +145,12 @@ export class WorkspaceController implements vscode.Disposable {
         return;
       case "save-mcp":
         await this.saveMcp(message.mcp);
+        return;
+      case "save-skill":
+        await this.saveSkill(message.skill);
+        return;
+      case "save-custom-model":
+        await this.saveCustomModel(message.model);
         return;
       case "connect-mcp":
         await this.mcpAction("连接 MCP 失败", (adapter) => adapter.connectMcp(message.name));
@@ -401,6 +421,32 @@ export class WorkspaceController implements vscode.Disposable {
     };
   }
 
+  private async searchWorkspaceFiles(query: string): Promise<FileSuggestion[]> {
+    const now = Date.now();
+    if (!this.workspaceFileCache || now - this.workspaceFileCache.loadedAt > 5_000) {
+      const uris = await vscode.workspace.findFiles(
+        "**/*",
+        "**/{.git,node_modules,.svn,.hg,dist,build,out,.next,.cache}/**",
+        5_000,
+      );
+      const files = uris.flatMap((uri): FileSuggestion[] => {
+        const relative = path.relative(this.workspacePath, uri.fsPath);
+        if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return [];
+        const normalized = relative.replace(/\\/g, "/");
+        return [{ path: normalized, name: path.basename(normalized) }];
+      });
+      this.workspaceFileCache = { loadedAt: now, files };
+    }
+
+    const normalizedQuery = query.trim().replace(/\\/g, "/").toLocaleLowerCase();
+    return this.workspaceFileCache.files
+      .map((file) => ({ file, score: fileSuggestionScore(file, normalizedQuery) }))
+      .filter((item) => item.score < 100)
+      .sort((left, right) => left.score - right.score || left.file.path.localeCompare(right.file.path))
+      .slice(0, 30)
+      .map((item) => item.file);
+  }
+
   private async openFile(filePath: string, line?: number): Promise<void> {
     const absolute = resolveInsideWorkspace(filePath, this.workspacePath);
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absolute));
@@ -454,6 +500,55 @@ export class WorkspaceController implements vscode.Disposable {
     const adapter = this.requireAdapter();
     await this.runWithError("保存 MCP 配置失败", () => adapter.saveMcp(mcp));
     await this.refreshMcps();
+  }
+
+  private async saveSkill(skill: SkillInput): Promise<void> {
+    if (skill.kind === "create") {
+      const directory = skill.scope === "project"
+        ? resolveInsideWorkspace(path.join(".opencode", "skills", skill.name), this.workspacePath)
+        : path.join(globalOpenCodeConfigDirectory(), "skills", skill.name);
+      const file = path.join(directory, "SKILL.md");
+      const uri = vscode.Uri.file(file);
+      let exists = false;
+      try {
+        await vscode.workspace.fs.stat(uri);
+        exists = true;
+      } catch {
+        // A missing target is the normal create flow.
+      }
+      if (exists) {
+        const answer = await vscode.window.showWarningMessage(
+          `Skill “${skill.name}” 已存在，是否覆盖 SKILL.md？`,
+          { modal: true },
+          "覆盖",
+        );
+        if (answer !== "覆盖") return;
+      }
+      await vscode.workspace.fs.createDirectory(vscode.Uri.file(directory));
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(renderSkillMarkdown(skill), "utf8"));
+      const location = skill.scope === "project" ? ".opencode/skills" : path.join(globalOpenCodeConfigDirectory(), "skills");
+      vscode.window.showInformationMessage(`Skill “${skill.name}” 已保存到 ${location}。重启 OpenCode 后生效。`);
+    } else {
+      const adapter = this.requireAdapter();
+      const saved = await this.runWithError("保存 Skill 来源失败", async () => {
+        await adapter.saveSkillSource(skill);
+        return true;
+      });
+      if (!saved) return;
+      vscode.window.showInformationMessage("Skill 来源已写入 OpenCode 官方配置。重启 OpenCode 后生效。");
+    }
+    await this.refreshCatalog();
+  }
+
+  private async saveCustomModel(model: CustomModelInput): Promise<void> {
+    const adapter = this.requireAdapter();
+    const saved = await this.runWithError("保存自定义模型失败", async () => {
+      await adapter.saveCustomModel(model);
+      return true;
+    });
+    if (!saved) return;
+    await this.refreshCatalog();
+    vscode.window.showInformationMessage(`自定义模型 ${model.providerId}/${model.modelId} 已写入 OpenCode 配置。重启 OpenCode 后生效。`);
   }
 
   private async mcpAction(label: string, action: (adapter: OpenCodeAdapter) => Promise<void>): Promise<void> {
@@ -517,6 +612,11 @@ function readSettings(): SettingsView {
   };
 }
 
+function globalOpenCodeConfigDirectory(): string {
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
+  return path.join(xdgConfigHome ? path.resolve(xdgConfigHome) : path.join(os.homedir(), ".config"), "opencode");
+}
+
 function referenceForUri(uri: vscode.Uri, selection: vscode.Selection | undefined, workspacePath: string): AttachmentView {
   const relative = path.relative(workspacePath, uri.fsPath).replace(/\\/g, "/");
   const displayPath = relative && !relative.startsWith("..") ? relative : uri.fsPath.replace(/\\/g, "/");
@@ -527,6 +627,23 @@ function referenceForUri(uri: vscode.Uri, selection: vscode.Selection | undefine
     reference += start === end ? `#L${start}` : `#L${start}-L${end}`;
   }
   return { id: randomId(), kind: "reference", name: path.basename(uri.fsPath), path: uri.fsPath, reference };
+}
+
+function attachmentMessage(attachment: AttachmentView | undefined): HostToWebviewMessage | undefined {
+  return attachment ? { type: "insert-reference", attachment } : undefined;
+}
+
+function fileSuggestionScore(file: FileSuggestion, query: string): number {
+  if (!query) return 10;
+  const filePath = file.path.toLocaleLowerCase();
+  const name = file.name.toLocaleLowerCase();
+  if (filePath === query || name === query) return 0;
+  if (filePath.startsWith(query)) return 1;
+  if (name.startsWith(query)) return 2;
+  if (filePath.includes(`/${query}`)) return 3;
+  if (filePath.includes(query)) return 4;
+  const terms = query.split(/[\\/._-]+/).filter(Boolean);
+  return terms.length && terms.every((term) => filePath.includes(term)) ? 5 : 100;
 }
 
 function imageMime(extension: string): string {

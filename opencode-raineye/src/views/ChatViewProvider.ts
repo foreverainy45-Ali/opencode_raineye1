@@ -38,8 +38,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
         return;
       }
       try {
-        const attachment = await this.controller.handle(value);
-        if (attachment) this.post({ type: "insert-reference", attachment });
+        const response = await this.controller.handle(value);
+        if (response) this.post(response);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error("Webview action failed", error);

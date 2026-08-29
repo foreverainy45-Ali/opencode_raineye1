@@ -8,8 +8,10 @@ CodeBuddy 风格的 VS Code 侧边栏客户端，运行时完全复用官方 Ope
 - 通过 OpenCode health/path API 鉴别进程、匹配工作区，并单独处理需要密码的实例。
 - 新对话、历史会话、SSE 消息、Reasoning/Tool/附件/Diff 展示。
 - Craft 执行前权限审批与执行后 Diff；只读 Plan 工作流。
-- `@` 文件引用、图片附件、可拖动 Composer、模型与 Skill 选择。
-- 官方 MCP `local`/`remote` 配置、连接状态和 OAuth 入口。
+- 输入 `@` 后按工作区路径自动补全文件，也可使用文件选择器；支持图片附件和可拖动 Composer。
+- 官方 MCP `local`/`remote` 配置、连接状态和 OAuth 入口；保存时同时持久化配置并动态接入当前进程。
+- 在设置中创建项目/全局 Skill，或注册官方 `skills.paths` / `skills.urls` 来源。
+- 在设置中用 Base URL、API Key、Provider ID 和 Model ID 创建 OpenCode 原生自定义 Provider/Model。
 
 ## 开发
 
@@ -21,7 +23,9 @@ npm.cmd run package-vsix
 npm.cmd run verify-vsix
 ```
 
-VSIX 输出到 `../out/opencode-raineye-0.2.1.vsix`，扩展 ID 为 `foreverainy45-ali.opencode-raineye`。
+VSIX 输出到 `../out/opencode-raineye-0.3.0.vsix`，扩展 ID 为 `foreverainy45-ali.opencode-raineye`。
+
+仓库根目录的 `examples/python-mcp/` 是零依赖 Python MCP 测试服务；`.opencode/skills/raineye-python-test/` 是会执行 Python 脚本并输出“测试成功”的 Skill 示例。
 
 如果 VS Code 报 `Could not register service worker`，这是 VS Code Webview 宿主在加载扩展页面之前的错误。关闭所有 VS Code 窗口重启；若所有 Webview 都失败，再备份并清理 `%APPDATA%\Code\Service Worker`。
 
