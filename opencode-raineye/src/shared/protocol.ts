@@ -7,14 +7,17 @@ export type ConnectionPhase =
   | "discovering"
   | "starting"
   | "connecting"
+  | "auth-required"
   | "connected"
   | "error";
 
 export interface ConnectionState {
   phase: ConnectionPhase;
   endpoint?: string;
-  source?: "configured" | "remembered" | "terminal" | "local" | "managed" | "manual";
+  source?: "configured" | "managed" | "remembered" | "terminal" | "mdns" | "listener" | "default" | "manual";
   version?: string;
+  pid?: number;
+  workspacePath?: string;
   message?: string;
 }
 
@@ -171,6 +174,8 @@ export interface SettingsView {
   serverUrl: string;
   serverPort: number;
   autoStart: boolean;
+  mdnsDiscovery: boolean;
+  mdnsDomain: string;
   defaultMode: ChatMode;
 }
 
@@ -343,6 +348,8 @@ function isSettings(value: unknown): value is SettingsView {
     && typeof settings.serverUrl === "string"
     && isPort(settings.serverPort)
     && typeof settings.autoStart === "boolean"
+    && typeof settings.mdnsDiscovery === "boolean"
+    && typeof settings.mdnsDomain === "string"
     && (settings.defaultMode === "craft" || settings.defaultMode === "plan");
 }
 

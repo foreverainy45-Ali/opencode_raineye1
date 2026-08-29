@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-08-29
+
+- 按配置、托管元数据、最近连接、Terminal 环境变量、可选 mDNS、本机监听端口和默认端口的顺序发现 OpenCode。
+- Windows 使用 `netstat -ano -p tcp` 枚举 LISTENING 端口，以 24 路有限并发调用 `/global/health` 鉴别，不扫描全部端口。
+- 使用 `/path` 优先匹配当前工作区；存在多个匹配实例时由用户选择。
+- 单独呈现 HTTP 401 密码状态，并持久化 endpoint、PID、工作区路径和版本。
+- 托管进程发生端口抢占时自动重新选择空闲端口。
+
 ## 0.1.1 - 2026-08-29
 
 - 修复 `package.json` 将 CommonJS 扩展入口错误声明为 ESM，导致扩展激活失败、命令未注册和侧栏不显示的问题。

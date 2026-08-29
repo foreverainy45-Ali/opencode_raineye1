@@ -442,6 +442,8 @@ export class WorkspaceController implements vscode.Disposable {
       configuration.update("serverUrl", settings.serverUrl.trim(), vscode.ConfigurationTarget.Global),
       configuration.update("serverPort", settings.serverPort, vscode.ConfigurationTarget.Global),
       configuration.update("autoStart", settings.autoStart, vscode.ConfigurationTarget.Workspace),
+      configuration.update("mdnsDiscovery", settings.mdnsDiscovery, vscode.ConfigurationTarget.Workspace),
+      configuration.update("mdnsDomain", settings.mdnsDomain.trim() || "opencode.local", vscode.ConfigurationTarget.Workspace),
       configuration.update("defaultMode", settings.defaultMode, vscode.ConfigurationTarget.Workspace),
     ]);
     this.update({ settings: readSettings(), mode: settings.defaultMode });
@@ -509,6 +511,8 @@ function readSettings(): SettingsView {
     serverUrl: config.get<string>("serverUrl", ""),
     serverPort: config.get<number>("serverPort", 4096),
     autoStart: config.get<boolean>("autoStart", false),
+    mdnsDiscovery: config.get<boolean>("mdnsDiscovery", false),
+    mdnsDomain: config.get<string>("mdnsDomain", "opencode.local"),
     defaultMode: config.get<ChatMode>("defaultMode", "craft"),
   };
 }

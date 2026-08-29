@@ -185,13 +185,15 @@ OpenCode Server
 
 插件真正需要发现的是“可验证的 OpenCode Server 端点”，而不是只找到一个名为 `opencode.exe` 的 OS 进程。仅有 PID 时通常不知道随机端口、认证信息、所属目录和 API 版本，不能安全连接。
 
-第一版先自动收集候选端点，按以下顺序验证：
+自动收集候选端点，按以下优先级验证：
 
 1. 用户在设置中明确配置的 `serverUrl`。
-2. 本扩展在 `workspaceState/globalState` 保存的 managed server 元数据。
-3. VS Code Terminal 的 `creationOptions.env._EXTENSION_OPENCODE_PORT`，用于兼容官方扩展创建的 Terminal。
-4. `http://127.0.0.1:4096` 默认端口。
-5. 用户最近成功连接的 loopback URL。
+2. 本扩展在 `workspaceState` 保存的 managed server 元数据。
+3. 用户最近成功连接的端点元数据。
+4. VS Code Terminal 的 `creationOptions.env._EXTENSION_OPENCODE_PORT`，用于兼容官方扩展创建的 Terminal。
+5. mDNS（显式启用时），过滤 OpenCode 官方的 `_http._tcp.local`、`opencode-${port}` 广播。
+6. Windows `netstat -ano -p tcp` 返回的 loopback/wildcard `LISTENING` 端口；只把它们作为候选，不依赖进程名或 PID 权限。
+7. `http://127.0.0.1:4096`（或设置中的默认端口）。
 
 每个候选都必须通过：
 
@@ -200,7 +202,9 @@ OpenCode Server
 - 认证探测：不能把 401 误报为“不是 OpenCode”。
 - 版本策略：同 major/已验证 minor 可连接，未验证版本进入兼容模式并提示。
 
-第一版不扫描全部本机端口，不用进程名猜端口。mDNS 可以在后续加入，但默认只发现 loopback，避免误连局域网服务。自动发现没有结果时不直接判定失败，而是进入“新建实例/手动连接”选择。
+不扫描全部 65535 个端口，也不用进程名猜端口。候选健康检查采用有限并发（24 路）和 450ms 单请求超时；健康检查成功后再请求 `/path`。工作区精确匹配优先于来源优先级；同级有多个实例时必须由用户选择。HTTP 401 单独进入“已发现、需要密码”状态。mDNS 默认关闭，避免误连局域网服务。自动发现没有结果时不直接判定失败，而是进入“新建实例/手动连接”选择。
+
+连接成功后持久化 `{ endpoint, pid, workspacePath, version }`，下次启动先重新验证再复用。托管实例仍使用动态空闲端口；在释放临时监听 socket 与 OpenCode 实际 bind 之间若出现 `EADDRINUSE`，自动重新选择端口，最多尝试 4 次。
 
 手动连接提供两种输入模式：
 
@@ -676,9 +680,9 @@ opencode-raineye/
 
 ### D3：已有 OpenCode 的发现范围（已确认）
 
-**已确认：先自动发现配置 URL、扩展记录、官方 Terminal env 和默认 4096，并经 health/path 验证。没有发现时由用户选择新建实例，或手动填写“本机 + 端口”“URL + 端口”。**
+**已确认：按“配置 URL → managed 元数据 → 最近连接 → 官方 Terminal env → 可选 mDNS → 本机 LISTENING 端口 → 默认端口”收集候选，并经 health/path 验证。没有发现时由用户选择新建实例，或手动填写“本机 + 端口”“URL + 端口”。**
 
-无法可靠连接只有 PID、但未知随机端口/认证/目录的任意外部 TUI。若必须覆盖，需要要求用户以固定端口或 mDNS 启动。
+未知随机端口的外部 PowerShell/OpenCode 进程通过“枚举监听端口 + OpenCode API 鉴别”覆盖；PID 仅作为可用元数据展示和保存，不作为身份判断依据。
 
 ### D4：Skill/MCP 实现边界（已确认）
 

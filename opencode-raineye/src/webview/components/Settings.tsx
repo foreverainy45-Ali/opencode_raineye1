@@ -26,6 +26,8 @@ export function Settings({
           <label>默认端口<input type="number" min={1} max={65535} value={settings.serverPort} onChange={(event) => setSettings({ ...settings, serverPort: Number(event.target.value) })} /></label>
           <label>默认模式<select value={settings.defaultMode} onChange={(event) => setSettings({ ...settings, defaultMode: event.target.value as "craft" | "plan" })}><option value="craft">Craft</option><option value="plan">Plan</option></select></label>
           <label className="check"><input type="checkbox" checked={settings.autoStart} onChange={(event) => setSettings({ ...settings, autoStart: event.target.checked })} />未发现时自动新建进程</label>
+          <label className="check"><input type="checkbox" checked={settings.mdnsDiscovery} onChange={(event) => setSettings({ ...settings, mdnsDiscovery: event.target.checked })} />启用可选 mDNS 发现</label>
+          {settings.mdnsDiscovery && <label className="wide">mDNS 域名<input value={settings.mdnsDomain} onChange={(event) => setSettings({ ...settings, mdnsDomain: event.target.value })} placeholder="opencode.local" /></label>}
         </div>
         <div className="settings-actions"><button onClick={() => post({ type: "open-tui" })}>打开官方 TUI</button><button className="primary" onClick={() => post({ type: "save-settings", settings })}>保存设置</button></div>
       </section>

@@ -13,6 +13,17 @@ export function ConnectionPanel({ connection, settings }: { connection: Connecti
     setPort(settings.serverPort);
   }, [settings]);
 
+  useEffect(() => {
+    if (connection.phase !== "auth-required" || !connection.endpoint) return;
+    try {
+      const endpoint = new URL(connection.endpoint);
+      setHost(`${endpoint.protocol}//${endpoint.hostname}`);
+      if (endpoint.port) setPort(Number(endpoint.port));
+    } catch {
+      setHost(connection.endpoint);
+    }
+  }, [connection.endpoint, connection.phase]);
+
   return (
     <main className="empty-stage connection-stage">
       <div className={`connection-orb ${pending ? "pulse" : ""}`}><span>◉</span></div>
@@ -23,7 +34,7 @@ export function ConnectionPanel({ connection, settings }: { connection: Connecti
         <button className="primary" disabled={pending} onClick={() => post({ type: "reconnect" })}>自动发现</button>
         <button disabled={pending} onClick={() => post({ type: "start-server" })}>新建本机进程</button>
       </div>
-      <details className="manual-connect" open={connection.phase === "error" || connection.phase === "disconnected"}>
+      <details className="manual-connect" open={connection.phase === "error" || connection.phase === "disconnected" || connection.phase === "auth-required"}>
         <summary>手动连接</summary>
         <label>主机或 URL<input value={host} onChange={(event) => setHost(event.target.value)} placeholder="127.0.0.1 或 https://host" /></label>
         <label>端口<input type="number" min={1} max={65535} value={port} onChange={(event) => setPort(Number(event.target.value))} /></label>
