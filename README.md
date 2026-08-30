@@ -26,8 +26,8 @@ OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界�
 - `.vscode/`：从仓库根目录启动 Extension Development Host 的配置。
 - `examples/python-mcp/`：返回“测试成功”的零依赖 Python MCP 与可粘贴配置。
 - `.opencode/skills/raineye-python-test/`：调用 Python 脚本的 OpenCode Skill 示例。
-- `out/opencode-raineye-0.3.2.vsix`：本地构建产物，默认不提交 Git。
-- `sst-dev.opencode-0.0.13.vsix`、`vsix_extracted/`：官方插件参考基线。
+- `out/opencode-raineye-0.3.2.vsix`：已提交的 0.3.2 发布包；`out/` 中保留各历史版本 VSIX，测试目录和日志仍被忽略。
+- 官方插件 VSIX 与解包目录仅作为开发参考使用，已从当前分支移除；如需参考请使用外部文件，不要重新提交到仓库。
 - `界面页.png`：界面参考图。
 
 ## 开发与打包
