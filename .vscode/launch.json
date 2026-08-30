@@ -2,6 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "type": "java",
+      "name": "q1",
+      "request": "launch",
+      "mainClass": "q1",
+      "projectName": "opencode_raineye1_71ab4ec2"
+    },
+    {
       "name": "Run RainEye Extension",
       "type": "extensionHost",
       "request": "launch",
