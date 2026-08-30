@@ -48,6 +48,7 @@ export function Composer({
     const clearInline = (event: PointerEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest(".mention-suggestions") && target !== textareaRef.current) setMention(undefined);
+      if (!target.closest(".skills-picker")) setSkillsOpen(false);
     };
     document.addEventListener("pointerdown", clearInline);
     return () => document.removeEventListener("pointerdown", clearInline);

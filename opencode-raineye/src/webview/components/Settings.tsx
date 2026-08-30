@@ -23,8 +23,9 @@ export function Settings({
   useEffect(() => {
     const closeMenus = (event: PointerEvent) => {
       const target = event.target as HTMLElement;
-      if (target.closest(".mcp-menu")) return;
-      document.querySelectorAll<HTMLDetailsElement>(".mcp-menu[open]").forEach((menu) => { menu.open = false; });
+      document.querySelectorAll<HTMLDetailsElement>(".mcp-menu[open]").forEach((menu) => {
+        if (!menu.contains(target)) menu.open = false;
+      });
     };
     document.addEventListener("pointerdown", closeMenus);
     return () => document.removeEventListener("pointerdown", closeMenus);
