@@ -12,6 +12,12 @@ export interface LegacyConfigInfo {
   keys: string[];
 }
 
+export interface SkillRegistration {
+  scope: ConfigScope;
+  source: string;
+  resolvedPath: string;
+}
+
 const MIGRATABLE_KEYS = ["mcp", "provider", "skills"] as const;
 
 export class OpenCodeConfigStore {
@@ -48,10 +54,33 @@ export class OpenCodeConfigStore {
     return await this.update(scope, ["provider", providerId], provider);
   }
 
-  async addSkillPath(scope: ConfigScope, value: string): Promise<string> {
+  async addSkillPaths(scope: ConfigScope, values: string[]): Promise<string> {
     const current = await this.read(scope);
-    const paths = [...new Set([...(current.skills?.paths ?? []), value.trim()])];
+    const additions = values.map((value) => value.trim()).filter(Boolean);
+    const paths = [...new Set([...(current.skills?.paths ?? []), ...additions])];
     return await this.update(scope, ["skills", "paths"], paths);
+  }
+
+  async deleteSkillPath(scope: ConfigScope, value: string): Promise<string> {
+    const current = await this.read(scope);
+    const paths = (current.skills?.paths ?? []).filter((item) => item !== value);
+    return await this.update(scope, ["skills", "paths"], paths.length ? paths : undefined);
+  }
+
+  async listSkillRegistrations(): Promise<SkillRegistration[]> {
+    const registrations: SkillRegistration[] = [];
+    for (const scope of ["project", "global"] as const) {
+      const [config, file] = await Promise.all([this.read(scope), this.configPath(scope)]);
+      for (const source of config.skills?.paths ?? []) {
+        if (!source.trim() || /^https?:\/\//i.test(source)) continue;
+        registrations.push({
+          scope,
+          source,
+          resolvedPath: path.resolve(path.dirname(file), source),
+        });
+      }
+    }
+    return registrations;
   }
 
   async detectLegacy(scope: ConfigScope): Promise<LegacyConfigInfo | undefined> {

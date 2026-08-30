@@ -25,7 +25,7 @@ npm.cmd run verify-vsix
 
 MCP、Skill 和自定义模型会写入 OpenCode 官方 `opencode.json/opencode.jsonc`；若检测到旧版 RainEye 生成的 `config.json`，设置页会提示迁移。
 
-VSIX 输出到 `../out/opencode-raineye-0.3.1.vsix`，扩展 ID 为 `foreverainy45-ali.opencode-raineye`。
+VSIX 输出到 `../out/opencode-raineye-0.3.2.vsix`，扩展 ID 为 `foreverainy45-ali.opencode-raineye`。
 
 仓库根目录的 `examples/python-mcp/` 是零依赖 Python MCP 测试服务；`.opencode/skills/raineye-python-test/` 是会执行 Python 脚本并输出“测试成功”的 Skill 示例。
 

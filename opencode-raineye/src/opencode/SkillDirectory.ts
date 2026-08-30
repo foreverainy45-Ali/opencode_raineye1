@@ -21,6 +21,10 @@ export function skillSourcePath(folderPath: string, workspacePath: string, scope
   return normalizePath(absolute);
 }
 
+export function skillDirectoryPath(location: string): string {
+  return path.basename(location).toLocaleLowerCase() === "skill.md" ? path.dirname(location) : location;
+}
+
 function normalizePath(value: string): string {
   return value.replace(/\\/g, "/");
 }

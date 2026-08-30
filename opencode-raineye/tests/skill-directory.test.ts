@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { findRootSkillManifest, skillSourcePath } from "../src/opencode/SkillDirectory";
+import { findRootSkillManifest, skillDirectoryPath, skillSourcePath } from "../src/opencode/SkillDirectory";
 
 describe("SkillDirectory", () => {
   it("accepts only a root SKILL.md file", () => {
@@ -14,5 +14,11 @@ describe("SkillDirectory", () => {
     const folder = path.join(workspace, "skills", "test-skill");
     expect(skillSourcePath(folder, workspace, "project")).toBe("./skills/test-skill");
     expect(skillSourcePath(folder, workspace, "global")).toMatch(/skills\/test-skill$/);
+  });
+
+  it("normalizes a Skill manifest location to its folder", () => {
+    const folder = path.join("C:\\", "skills", "test-skill");
+    expect(skillDirectoryPath(path.join(folder, "SKILL.md"))).toBe(folder);
+    expect(skillDirectoryPath(folder)).toBe(folder);
   });
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 - 2026-08-30
+
+- Skill 文件夹选择支持一次多选，自动跳过根目录没有 `SKILL.md` 的无效目录，并统一重载 OpenCode。
+- Skill 列表增加三点菜单，可编辑 `SKILL.md`、重新加载，以及从项目或全局配置移除注册路径；移除配置不会删除磁盘文件。
+- 移除 Webview 内重复的新对话、历史和设置导航栏，仅保留 VS Code 视图标题栏中的原生命令按钮。
+
 ## 0.3.1 - 2026-08-30
 
 - 修复 OpenCode 1.18.25 `/config` 接口写入非启动配置 `config.json`，导致 MCP 和自定义模型重启后丢失的问题；改为安全修改官方 `opencode.json/opencode.jsonc`。

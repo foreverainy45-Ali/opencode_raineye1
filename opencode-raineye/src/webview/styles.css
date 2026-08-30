@@ -39,7 +39,7 @@ pre { white-space: pre-wrap; word-break: break-word; }
 
 .app-shell { height: 100%; display: grid; grid-template-rows: 43px minmax(0, 1fr); background: var(--vscode-sideBar-background, var(--vscode-editor-background)); }
 .topbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px;
+  display: flex; align-items: center; padding: 5px 8px;
   border-bottom: 1px solid var(--border); background: var(--panel);
 }
 .brand { display: flex; align-items: center; gap: 7px; padding: 2px 6px; border: 0; background: transparent; }
@@ -47,9 +47,6 @@ pre { white-space: pre-wrap; word-break: break-word; }
   display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; color: white; font-weight: 800;
   background: linear-gradient(145deg, #8c68ff, #4d3ccf 70%, #2f2498); box-shadow: 0 3px 12px color-mix(in srgb, #7057e8 36%, transparent);
 }
-.topbar nav { display: flex; gap: 2px; }
-.topbar nav button { border: 0; background: transparent; min-width: 30px; padding: 3px; font-size: 17px; }
-.topbar nav button.active { background: var(--panel-strong); color: var(--vscode-textLink-foreground); }
 
 .boot { height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
 .spinner { width: 17px; height: 17px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
@@ -205,13 +202,17 @@ pre { white-space: pre-wrap; word-break: break-word; }
 .add-mcp { width: 100%; margin-top: 9px; border-style: dashed; color: var(--vscode-textLink-foreground); }
 .mcp-form { margin-top: 10px; padding: 11px; border: 1px solid var(--vscode-focusBorder, var(--border)); border-radius: 8px; background: var(--vscode-editor-background); }
 .segmented { display: flex; margin-top: 10px; }.segmented button { flex: 1; border-radius: 0; }.segmented button:first-child { border-radius: 6px 0 0 6px; }.segmented button:last-child { border-radius: 0 6px 6px 0; }.segmented button.active { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); border-color: var(--accent); }
-.skill-list { display: flex; flex-direction: column; margin-top: 11px; max-height: 320px; overflow-y: auto; }.skill-list > div { display: grid; gap: 2px; padding: 8px 2px; border-bottom: 1px solid var(--border); }.skill-list > div:last-child { border-bottom: 0; }.skill-list span, .skill-list code { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.skill-list { display: flex; flex-direction: column; margin-top: 11px; max-height: 320px; overflow-y: auto; }
+.skill-list > div { padding: 8px 2px; border-bottom: 1px solid var(--border); }
+.skill-list > div:last-child { border-bottom: 0; }
+.skill-row { position: relative; display: flex; align-items: center; gap: 8px; }
+.skill-info { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.skill-info span, .skill-info code, .skill-info small { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
 
 .toast-stack { position: fixed; right: 10px; bottom: 10px; z-index: 20; display: flex; flex-direction: column; gap: 6px; max-width: min(360px, calc(100% - 20px)); }
 .toast { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--vscode-notifications-background, var(--panel)); box-shadow: 0 5px 20px rgba(0,0,0,.2); }.toast.error { border-color: color-mix(in srgb, var(--danger) 60%, var(--border)); }.toast.warning { border-color: #d5a641; }
 
 @media (max-width: 360px) {
-  .brand b { display: none; }
   .conversation { padding-left: 8px; padding-right: 8px; }
   .message.user { margin-left: 8px; }
   .composer-wrap { padding-left: 6px; padding-right: 6px; }

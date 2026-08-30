@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AttachmentView, FileSuggestion, HostToWebviewMessage, UiSnapshot, ViewSection } from "../shared/protocol";
+import type { AttachmentView, FileSuggestion, HostToWebviewMessage, UiSnapshot } from "../shared/protocol";
 import { Composer } from "./components/Composer";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { Conversation } from "./components/Conversation";
@@ -46,20 +46,11 @@ export function App(): React.JSX.Element {
 
   const connected = snapshot.connection.phase === "connected";
   const currentSession = snapshot.sessions.find((session) => session.id === snapshot.currentSessionId);
-  const navigate = (section: ViewSection) => post({ type: "navigate", section });
-
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="brand" title="OpenCode RainEye" onClick={() => navigate("chat")}><span>R</span><b>RainEye</b></button>
-        <nav>
-          <button className={snapshot.section === "chat" ? "active" : ""} onClick={() => navigate("chat")} title="对话">⌁</button>
-          <button onClick={() => post({ type: "new-session" })} title="新增对话">＋</button>
-          <button className={snapshot.section === "history" ? "active" : ""} onClick={() => navigate("history")} title="历史对话">◷</button>
-          <button className={snapshot.section === "settings" ? "active" : ""} onClick={() => navigate("settings")} title="设置">⚙</button>
-        </nav>
+        <button className="brand" title="返回当前对话" onClick={() => post({ type: "navigate", section: "chat" })}><span>R</span><b>RainEye</b></button>
       </header>
-
       {!connected
         ? <ConnectionPanel connection={snapshot.connection} settings={snapshot.settings} />
         : snapshot.section === "history"

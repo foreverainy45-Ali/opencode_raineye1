@@ -8,6 +8,9 @@ describe("isWebviewMessage", () => {
     expect(isWebviewMessage({ type: "save-mcp", mcp: { name: "fs", scope: "project", type: "local", command: ["server"] } })).toBe(true);
     expect(isWebviewMessage({ type: "search-files", requestId: 1, query: "src/" })).toBe(true);
     expect(isWebviewMessage({ type: "select-skill-folder", scope: "project" })).toBe(true);
+    expect(isWebviewMessage({ type: "open-skill", location: "C:\\skills\\test\\SKILL.md" })).toBe(true);
+    expect(isWebviewMessage({ type: "reload-skills" })).toBe(true);
+    expect(isWebviewMessage({ type: "delete-skill", name: "test", scope: "project", source: "./skills/test" })).toBe(true);
     expect(isWebviewMessage({ type: "delete-mcp", name: "fs", scope: "global" })).toBe(true);
     expect(isWebviewMessage({ type: "reconnect-mcp", name: "fs" })).toBe(true);
     expect(isWebviewMessage({
@@ -31,6 +34,7 @@ describe("isWebviewMessage", () => {
     expect(isWebviewMessage(null)).toBe(false);
     expect(isWebviewMessage("ready")).toBe(false);
     expect(isWebviewMessage({ type: "select-skill-folder", scope: "invalid" })).toBe(false);
+    expect(isWebviewMessage({ type: "delete-skill", name: "test", scope: "invalid", source: "./skills/test" })).toBe(false);
     expect(isWebviewMessage({
       type: "save-custom-model",
       model: { scope: "project", providerId: "custom", providerName: "Custom", modelId: "m", modelName: "M", baseUrl: "file:///key", npm: "@ai-sdk/openai-compatible" },

@@ -2,7 +2,7 @@
   "name": "opencode-raineye",
   "displayName": "OpenCode RainEye",
   "description": "A CodeBuddy-style VS Code client for the official OpenCode server.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "foreverainy45-ali",
   "license": "MIT",
   "repository": {
@@ -206,8 +206,8 @@
     "test:examples": "node scripts/test-python-examples.mjs",
     "test:opencode-reload": "node scripts/test-opencode-config-reload.mjs",
     "vscode:prepublish": "npm run build",
-    "package-vsix": "vsce package --no-dependencies -o ../out/opencode-raineye-0.3.1.vsix",
-    "verify-vsix": "node scripts/verify-vsix.mjs ../out/opencode-raineye-0.3.1.vsix"
+    "package-vsix": "vsce package --no-dependencies -o ../out/opencode-raineye-0.3.2.vsix",
+    "verify-vsix": "node scripts/verify-vsix.mjs ../out/opencode-raineye-0.3.2.vsix"
   },
   "dependencies": {
     "@opencode-ai/sdk": "1.18.25",

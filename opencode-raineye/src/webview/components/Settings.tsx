@@ -57,9 +57,9 @@ export function Settings({
       </section>
 
       <section className="settings-card">
-        <div className="section-title"><div><h3>Skills</h3><p>选择根目录包含 SKILL.md 的文件夹，由 OpenCode 原生扫描与加载。</p></div><span className="count">{skills.length}</span></div>
+        <div className="section-title"><div><h3>Skills</h3><p>可一次选择多个根目录包含 SKILL.md 的文件夹，由 OpenCode 原生扫描与加载。</p></div><span className="count">{skills.length}</span></div>
         <div className="skill-list">
-          {skills.slice(0, 30).map((skill) => <div key={skill.name}><strong>{skill.name}</strong><span>{skill.description}</span><code>{skill.location}</code></div>)}
+          {skills.slice(0, 30).map((skill) => <SkillRow key={`${skill.name}-${skill.location}`} skill={skill} />)}
           {!skills.length && <div className="empty-list">未发现 Skill。可在 .opencode/skills、.agents/skills 等官方目录添加。</div>}
         </div>
         <SkillFolderPicker />
@@ -147,9 +147,32 @@ function SkillFolderPicker(): React.JSX.Element {
     <div className="mcp-form skill-folder-picker">
       <div className="form-grid">
         <label>作用域<select value={scope} onChange={(event) => setScope(event.target.value as "project" | "global")}><option value="project">当前项目</option><option value="global">全局</option></select></label>
-        <label className="wide"><small>只注册所选文件夹，不复制或修改其中内容；根目录必须存在 OpenCode 官方文件名 SKILL.md。</small></label>
+        <label className="wide"><small>支持一次多选；只注册所选文件夹，不复制或修改其中内容；每个根目录都必须存在 OpenCode 官方文件名 SKILL.md。</small></label>
       </div>
-      <button className="add-mcp" onClick={() => post({ type: "select-skill-folder", scope })}>选择 Skill 文件夹…</button>
+      <button className="add-mcp" onClick={() => post({ type: "select-skill-folder", scope })}>选择一个或多个 Skill 文件夹…</button>
+    </div>
+  );
+}
+
+function SkillRow({ skill }: { skill: SkillOption }): React.JSX.Element {
+  return (
+    <div className="skill-row">
+      <div className="skill-info">
+        <strong>{skill.name}</strong>
+        <span>{skill.description}</span>
+        <code>{skill.location}</code>
+        <small>{skill.registeredScope ? `${skill.registeredScope === "global" ? "全局" : "项目"}配置` : "OpenCode 自动发现"}</small>
+      </div>
+      <details className="mcp-menu">
+        <summary title="Skill 操作" aria-label="Skill 操作">⋯</summary>
+        <div>
+          <button onClick={() => post({ type: "open-skill", location: skill.location })}>编辑 SKILL.md</button>
+          <button onClick={() => post({ type: "reload-skills" })}>重新加载</button>
+          {skill.registeredScope && skill.registeredSource
+            ? <button className="danger" onClick={() => post({ type: "delete-skill", name: skill.name, scope: skill.registeredScope!, source: skill.registeredSource! })}>移除配置</button>
+            : null}
+        </div>
+      </details>
     </div>
   );
 }

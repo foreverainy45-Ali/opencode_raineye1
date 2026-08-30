@@ -53,4 +53,21 @@ describe("OpenCodeConfigStore", () => {
     expect(official.provider?.custom?.models?.model?.name).toBe("Model");
     expect(await fs.readFile(path.join(workspace, "opencode.json"), "utf8")).toContain("https://opencode.ai/config.json");
   });
+
+  it("adds, resolves and removes multiple Skill paths", async () => {
+    const workspace = await temporaryWorkspace();
+    const store = new OpenCodeConfigStore(workspace);
+
+    await store.addSkillPaths("project", ["./skills/one", "./skills/two", "./skills/one"]);
+    expect((await store.read("project")).skills?.paths).toEqual(["./skills/one", "./skills/two"]);
+    expect(await store.listSkillRegistrations()).toEqual(expect.arrayContaining([
+      { scope: "project", source: "./skills/one", resolvedPath: path.join(workspace, "skills", "one") },
+      { scope: "project", source: "./skills/two", resolvedPath: path.join(workspace, "skills", "two") },
+    ]));
+
+    await store.deleteSkillPath("project", "./skills/one");
+    expect((await store.read("project")).skills?.paths).toEqual(["./skills/two"]);
+    await store.deleteSkillPath("project", "./skills/two");
+    expect((await store.read("project")).skills?.paths).toBeUndefined();
+  });
 });

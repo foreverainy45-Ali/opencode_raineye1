@@ -89,6 +89,8 @@ export interface SkillOption {
   name: string;
   description?: string;
   location: string;
+  registeredScope?: "project" | "global";
+  registeredSource?: string;
 }
 
 export interface AgentOption {
@@ -289,6 +291,9 @@ export type WebviewToHostMessage =
   | { type: "save-settings"; settings: SettingsView }
   | { type: "save-mcp"; mcp: McpInput }
   | { type: "select-skill-folder"; scope: "project" | "global" }
+  | { type: "open-skill"; location: string }
+  | { type: "reload-skills" }
+  | { type: "delete-skill"; name: string; scope: "project" | "global"; source: string }
   | { type: "save-custom-model"; model: CustomModelInput }
   | { type: "connect-mcp"; name: string }
   | { type: "disconnect-mcp"; name: string }
@@ -315,9 +320,16 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
     case "refresh":
     case "open-tui":
     case "open-output":
+    case "reload-skills":
       return true;
     case "select-skill-folder":
       return message.scope === "project" || message.scope === "global";
+    case "open-skill":
+      return typeof message.location === "string" && message.location.length > 0;
+    case "delete-skill":
+      return typeof message.name === "string" && message.name.length > 0
+        && (message.scope === "project" || message.scope === "global")
+        && typeof message.source === "string" && message.source.length > 0;
     case "search-files":
       return Number.isInteger(message.requestId)
         && Number(message.requestId) >= 0

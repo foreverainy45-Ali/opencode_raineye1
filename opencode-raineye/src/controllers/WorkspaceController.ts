@@ -4,7 +4,7 @@ import { ConnectionManager, type ActiveConnection } from "../connection/Connecti
 import { buildCustomProviderConfig } from "../opencode/CustomProviderConfig";
 import { OpenCodeConfigStore, type ConfigScope } from "../opencode/OpenCodeConfigStore";
 import { OpenCodeAdapter } from "../opencode/OpenCodeAdapter";
-import { findRootSkillManifest, skillSourcePath } from "../opencode/SkillDirectory";
+import { findRootSkillManifest, skillDirectoryPath, skillSourcePath } from "../opencode/SkillDirectory";
 import { Logger } from "../services/Logger";
 import {
   AttachmentView,
@@ -151,6 +151,15 @@ export class WorkspaceController implements vscode.Disposable {
         return;
       case "select-skill-folder":
         await this.selectSkillFolder(message.scope);
+        return;
+      case "open-skill":
+        await this.openSkill(message.location);
+        return;
+      case "reload-skills":
+        await this.reloadSkills();
+        return;
+      case "delete-skill":
+        await this.deleteSkill(message.name, message.scope, message.source);
         return;
       case "save-custom-model":
         await this.saveCustomModel(message.model);
@@ -310,16 +319,30 @@ export class WorkspaceController implements vscode.Disposable {
   private async refreshCatalog(): Promise<void> {
     const adapter = this.adapter;
     if (!adapter) return;
-    const catalog = await adapter.getCatalog();
+    const [catalog, registrations] = await Promise.all([
+      adapter.getCatalog(),
+      this.configStore.listSkillRegistrations().catch((error) => {
+        this.logger.warn("Failed to read configured Skill paths", error);
+        return [];
+      }),
+    ]);
+    const skills = catalog.skills.map((skill) => {
+      const registration = registrations.find((item) => samePath(item.resolvedPath, skillDirectoryPath(skill.location)));
+      return registration ? {
+        ...skill,
+        registeredScope: registration.scope,
+        registeredSource: registration.source,
+      } : skill;
+    });
     const availableModel = this.snapshot.selectedModel && catalog.models.some((model) => model.id === this.snapshot.selectedModel)
       ? this.snapshot.selectedModel
       : catalog.defaultModel;
-    const availableSkill = this.snapshot.selectedSkill && catalog.skills.some((skill) => skill.name === this.snapshot.selectedSkill)
+    const availableSkill = this.snapshot.selectedSkill && skills.some((skill) => skill.name === this.snapshot.selectedSkill)
       ? this.snapshot.selectedSkill
       : undefined;
     this.update({
       models: catalog.models,
-      skills: catalog.skills,
+      skills,
       agents: catalog.agents,
       selectedModel: availableModel,
       selectedSkill: availableSkill,
@@ -543,32 +566,88 @@ export class WorkspaceController implements vscode.Disposable {
 
   private async selectSkillFolder(scope: "project" | "global"): Promise<void> {
     const picked = await vscode.window.showOpenDialog({
-      canSelectMany: false,
+      canSelectMany: true,
       canSelectFiles: false,
       canSelectFolders: true,
       defaultUri: vscode.Uri.file(this.workspacePath),
-      openLabel: "选择 Skill 文件夹",
-      title: "选择根目录包含 SKILL.md 的文件夹",
+      openLabel: "添加所选 Skill 文件夹",
+      title: "选择一个或多个根目录包含 SKILL.md 的文件夹",
     });
-    if (!picked?.[0]) return;
+    if (!picked?.length) return;
 
-    const entries = await vscode.workspace.fs.readDirectory(picked[0]);
-    const manifest = findRootSkillManifest(entries.map(([name, type]) => [name, Boolean(type & vscode.FileType.File)]));
-    if (!manifest) {
-      vscode.window.showErrorMessage("所选文件夹根目录没有 SKILL.md，未添加 Skill。");
-      return;
+    const inspected = await Promise.all(picked.map(async (uri) => {
+      try {
+        const entries = await vscode.workspace.fs.readDirectory(uri);
+        const manifest = findRootSkillManifest(entries.map(([name, type]) => [name, Boolean(type & vscode.FileType.File)]));
+        return manifest ? { uri, source: skillSourcePath(uri.fsPath, this.workspacePath, scope) } : { uri };
+      } catch {
+        return { uri };
+      }
+    }));
+    const valid = inspected.filter((item): item is { uri: vscode.Uri; source: string } => Boolean(item.source));
+    const invalid = inspected.filter((item) => !item.source).map((item) => item.uri.fsPath);
+    if (invalid.length) {
+      vscode.window.showWarningMessage(`已跳过 ${invalid.length} 个无效 Skill 文件夹（根目录必须包含 SKILL.md）：${invalid.join("；")}`);
     }
+    if (!valid.length) return;
 
-    const source = skillSourcePath(picked[0].fsPath, this.workspacePath, scope);
     const adapter = this.requireAdapter();
     const saved = await this.runWithError("保存 Skill 文件夹失败", async () => {
-      await this.configStore.addSkillPath(scope, source);
+      await this.configStore.addSkillPaths(scope, valid.map((item) => item.source));
       await adapter.reloadInstance();
       return true;
     });
     if (!saved) return;
     await this.refreshCatalog();
-    vscode.window.showInformationMessage(`已注册 Skill 文件夹：${picked[0].fsPath}。OpenCode 配置已重新加载。`);
+    vscode.window.showInformationMessage(`已注册 ${valid.length} 个 Skill 文件夹，OpenCode 配置已重新加载。`);
+  }
+
+  private async openSkill(location: string): Promise<void> {
+    const skill = this.snapshot.skills.find((item) => item.location === location);
+    if (!skill) return;
+    let uri = vscode.Uri.file(skill.location);
+    const stat = await vscode.workspace.fs.stat(uri);
+    if (stat.type & vscode.FileType.Directory) {
+      const entries = await vscode.workspace.fs.readDirectory(uri);
+      const manifest = findRootSkillManifest(entries.map(([name, type]) => [name, Boolean(type & vscode.FileType.File)]));
+      if (!manifest) throw new Error(`Skill 文件夹根目录没有 SKILL.md：${skill.location}`);
+      uri = vscode.Uri.joinPath(uri, manifest);
+    }
+    const document = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(document);
+  }
+
+  private async reloadSkills(): Promise<void> {
+    const adapter = this.requireAdapter();
+    const reloaded = await this.runWithError("重新加载 Skill 失败", async () => {
+      await adapter.reloadInstance();
+      return true;
+    });
+    if (!reloaded) return;
+    await this.refreshCatalog();
+    vscode.window.showInformationMessage("Skill 已重新加载");
+  }
+
+  private async deleteSkill(name: string, scope: ConfigScope, source: string): Promise<void> {
+    const skill = this.snapshot.skills.find((item) => item.name === name
+      && item.registeredScope === scope
+      && item.registeredSource === source);
+    if (!skill) return;
+    const answer = await vscode.window.showWarningMessage(
+      `从 ${scope === "global" ? "全局" : "项目"} OpenCode 配置移除 Skill “${name}”？磁盘上的文件夹不会被删除。`,
+      { modal: true },
+      "移除配置",
+    );
+    if (answer !== "移除配置") return;
+    const adapter = this.requireAdapter();
+    const deleted = await this.runWithError("移除 Skill 配置失败", async () => {
+      await this.configStore.deleteSkillPath(scope, source);
+      await adapter.reloadInstance();
+      return true;
+    });
+    if (!deleted) return;
+    await this.refreshCatalog();
+    vscode.window.showInformationMessage(`Skill “${name}” 已从 OpenCode 配置移除，原文件夹仍保留。`);
   }
 
   private async validateLocalMcp(mcp: Extract<McpInput, { type: "local" }>): Promise<Extract<McpInput, { type: "local" }>> {
