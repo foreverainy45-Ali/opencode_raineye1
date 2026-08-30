@@ -50,7 +50,7 @@ export interface SendInput {
   text: string;
   mode: ChatMode;
   model?: string;
-  skill?: string;
+  skills?: string[];
   attachments: AttachmentView[];
 }
 
@@ -151,8 +151,8 @@ export class OpenCodeAdapter {
       });
     }
 
-    const skillInstruction = input.skill
-      ? `Use the "${input.skill}" skill for this request. Load it with OpenCode's native skill tool before applying it.`
+    const skillInstruction = input.skills?.length
+      ? `Use these skills for this request: ${input.skills.map((skill) => `"${skill}"`).join(", ")}. Load them with OpenCode's native skill tool before applying them.`
       : undefined;
     await this.client.session.promptAsync<true>({
       sessionID: input.sessionId,

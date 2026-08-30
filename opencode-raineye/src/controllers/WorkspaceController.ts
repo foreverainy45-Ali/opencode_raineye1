@@ -58,7 +58,7 @@ export class WorkspaceController implements vscode.Disposable {
       busy: false,
       mode: defaultMode,
       selectedModel: context.workspaceState.get<string>(MODEL_KEY),
-      selectedSkill: context.workspaceState.get<string>(SKILL_KEY),
+      selectedSkill: normalizeSelectedSkills(context.workspaceState.get<string[] | string>(SKILL_KEY, [])),
       models: [],
       skills: [],
       agents: [],
@@ -112,7 +112,7 @@ export class WorkspaceController implements vscode.Disposable {
         await this.deleteSession(message.sessionId);
         return;
       case "send":
-        await this.send(message.text, message.mode, message.model, message.skill, message.attachments);
+        await this.send(message.text, message.mode, message.model, message.skills, message.attachments);
         return;
       case "abort":
         await this.abort();
@@ -337,15 +337,13 @@ export class WorkspaceController implements vscode.Disposable {
     const availableModel = this.snapshot.selectedModel && catalog.models.some((model) => model.id === this.snapshot.selectedModel)
       ? this.snapshot.selectedModel
       : catalog.defaultModel;
-    const availableSkill = this.snapshot.selectedSkill && skills.some((skill) => skill.name === this.snapshot.selectedSkill)
-      ? this.snapshot.selectedSkill
-      : undefined;
+    const availableSkills = (this.snapshot.selectedSkill ?? []).filter((name) => skills.some((skill) => skill.name === name));
     this.update({
       models: catalog.models,
       skills,
       agents: catalog.agents,
       selectedModel: availableModel,
-      selectedSkill: availableSkill,
+      selectedSkill: availableSkills,
     });
   }
 
@@ -397,7 +395,7 @@ export class WorkspaceController implements vscode.Disposable {
     if (wasCurrent) this.update({ currentSessionId: undefined, messages: [], diffs: [] });
   }
 
-  private async send(text: string, mode: ChatMode, model: string | undefined, skill: string | undefined, attachments: AttachmentView[]): Promise<void> {
+  private async send(text: string, mode: ChatMode, model: string | undefined, skills: string[] | undefined, attachments: AttachmentView[]): Promise<void> {
     if (!text.trim() && attachments.length === 0) return;
     const adapter = this.requireAdapter();
     let sessionId = this.snapshot.currentSessionId;
@@ -408,13 +406,14 @@ export class WorkspaceController implements vscode.Disposable {
       createdForSend = true;
       this.update({ currentSessionId: sessionId, sessions: [session, ...this.snapshot.sessions] });
     }
-    this.update({ busy: true, mode, selectedModel: model, selectedSkill: skill, error: undefined });
+    const selectedSkills = skills ?? [];
+    this.update({ busy: true, mode, selectedModel: model, selectedSkill: selectedSkills, error: undefined });
     await Promise.all([
       this.context.workspaceState.update(MODEL_KEY, model),
-      this.context.workspaceState.update(SKILL_KEY, skill),
+      this.context.workspaceState.update(SKILL_KEY, selectedSkills),
     ]);
     try {
-      await adapter.send({ sessionId, text, mode, model, skill, attachments });
+      await adapter.send({ sessionId, text, mode, model, skills: selectedSkills, attachments });
       this.scheduleConversationRefresh();
     } catch (error) {
       if (createdForSend) {
@@ -779,6 +778,11 @@ export class WorkspaceController implements vscode.Disposable {
   private emit(): void {
     this.emitter.fire(this.snapshot);
   }
+}
+
+function normalizeSelectedSkills(value: string[] | string | undefined): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  return typeof value === "string" && value.length > 0 ? [value] : [];
 }
 
 function readSettings(): SettingsView {

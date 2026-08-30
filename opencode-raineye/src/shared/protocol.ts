@@ -198,7 +198,7 @@ export interface UiSnapshot {
   busy: boolean;
   mode: ChatMode;
   selectedModel?: string;
-  selectedSkill?: string;
+  selectedSkill?: string[];
   models: ModelOption[];
   skills: SkillOption[];
   agents: AgentOption[];
@@ -278,7 +278,7 @@ export type WebviewToHostMessage =
   | { type: "new-session" }
   | { type: "open-session"; sessionId: string }
   | { type: "delete-session"; sessionId: string }
-  | { type: "send"; text: string; mode: ChatMode; model?: string; skill?: string; attachments: AttachmentView[] }
+  | { type: "send"; text: string; mode: ChatMode; model?: string; skills?: string[]; attachments: AttachmentView[] }
   | { type: "abort" }
   | { type: "select-file" }
   | { type: "select-image" }
@@ -347,7 +347,7 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
         && message.text.length <= 2_000_000
         && (message.mode === "craft" || message.mode === "plan")
         && optionalString(message.model)
-        && optionalString(message.skill)
+        && optionalSkillSelection(message.skills)
         && Array.isArray(message.attachments)
         && message.attachments.length <= 20
         && message.attachments.every(isAttachment);
@@ -469,6 +469,12 @@ function optionalPositiveInteger(value: unknown): boolean {
 
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === "string";
+}
+
+function optionalSkillSelection(value: unknown): boolean {
+  return value === undefined || (Array.isArray(value)
+    && value.length <= 20
+    && value.every((item) => typeof item === "string" && item.length > 0 && item.length <= 128));
 }
 
 function optionalNumber(value: unknown): boolean {

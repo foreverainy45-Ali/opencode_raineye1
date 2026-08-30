@@ -17,7 +17,7 @@ export function Composer({
 }: {
   mode: ChatMode;
   selectedModel?: string;
-  selectedSkill?: string;
+  selectedSkill?: string[];
   models: ModelOption[];
   skills: SkillOption[];
   attachments: AttachmentView[];
@@ -30,7 +30,8 @@ export function Composer({
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ChatMode>(initialMode);
   const [model, setModel] = useState(selectedModel ?? "");
-  const [skill, setSkill] = useState(selectedSkill ?? "");
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(selectedSkill ?? []);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [height, setHeight] = useState(190);
   const [mention, setMention] = useState<{ start: number; end: number; query: string }>();
   const [suggestionIndex, setSuggestionIndex] = useState(0);
@@ -40,8 +41,17 @@ export function Composer({
 
   useEffect(() => setMode(initialMode), [initialMode]);
   useEffect(() => setModel(selectedModel ?? ""), [selectedModel]);
-  useEffect(() => setSkill(selectedSkill ?? ""), [selectedSkill]);
+  useEffect(() => setSelectedSkills(selectedSkill ?? []), [selectedSkill]);
   useEffect(() => textareaRef.current?.focus(), [focusToken]);
+
+  useEffect(() => {
+    const clearInline = (event: PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".mention-suggestions") && target !== textareaRef.current) setMention(undefined);
+    };
+    document.addEventListener("pointerdown", clearInline);
+    return () => document.removeEventListener("pointerdown", clearInline);
+  }, []);
 
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -64,7 +74,7 @@ export function Composer({
       text,
       mode,
       model: model || undefined,
-      skill: skill || undefined,
+      skills: selectedSkills.length ? selectedSkills : undefined,
       attachments,
     });
     setText("");
@@ -199,10 +209,18 @@ export function Composer({
               {!models.length && <option value="">无可用模型</option>}
               {models.map((item) => <option key={item.id} value={item.id}>{item.providerName} · {item.name}</option>)}
             </select>
-            <select value={skill} onChange={(event) => setSkill(event.target.value)} title="Skill">
-              <option value="">Skill: 自动</option>
-              {skills.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
-            </select>
+            <div className="skills-picker">
+              <button type="button" className={`skills-trigger${selectedSkills.length ? " selected" : ""}`} title="选择 Skill" onClick={() => setSkillsOpen((open) => !open)}>Skills</button>
+              {skillsOpen && <div className="skills-popover" role="menu">
+              {!skills.length && <span className="skills-empty">暂无可用 Skill</span>}
+                {skills.map((item) => {
+                  const checked = selectedSkills.includes(item.name);
+                  return <button type="button" role="menuitemcheckbox" aria-checked={checked} className={`skill-option${checked ? " checked" : ""}`} key={item.name} onClick={() => setSelectedSkills((current) => checked ? current.filter((name) => name !== item.name) : [...current, item.name])}>
+                    <span className="skill-check">{checked ? "✓" : ""}</span><span>{item.name}</span>
+                  </button>;
+                })}
+              </div>}
+            </div>
           </div>
           {busy
             ? <button className="send-button stop" title="停止" onClick={() => post({ type: "abort" })}>■</button>
