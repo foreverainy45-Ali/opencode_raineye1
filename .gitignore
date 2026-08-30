@@ -8,3 +8,23 @@ out/
 .DS_Store
 Thumbs.db
 
+# Local OpenCode/RainEye runtime configuration and secrets
+config.json
+opencode.json
+opencode.jsonc
+.opencode/.cache/
+
+# Local build, test and conversation artifacts
+.tmp/
+outputs/
+debug.log
+q1.java
+q1.class
+tool call*.png
+界面页*.png
+示例图片*.png
+
+# Reference OpenCode extension archives and extracted contents
+sst-dev.opencode-0.0.13.vsix
+sst-dev.opencode-0.0.13.zip
+vsix_extracted/
