@@ -154,6 +154,7 @@ export function Composer({
         <textarea
           ref={textareaRef}
           value={text}
+          onBlur={() => setMention(undefined)}
           onChange={(event) => {
             setText(event.target.value);
             updateMention(event.target.value, event.target.selectionStart);
