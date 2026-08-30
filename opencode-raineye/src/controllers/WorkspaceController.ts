@@ -1,9 +1,10 @@
 import * as path from "node:path";
-import * as os from "node:os";
 import * as vscode from "vscode";
 import { ConnectionManager, type ActiveConnection } from "../connection/ConnectionManager";
+import { buildCustomProviderConfig } from "../opencode/CustomProviderConfig";
+import { OpenCodeConfigStore, type ConfigScope } from "../opencode/OpenCodeConfigStore";
 import { OpenCodeAdapter } from "../opencode/OpenCodeAdapter";
-import { renderSkillMarkdown } from "../opencode/SkillFile";
+import { findRootSkillManifest, skillSourcePath } from "../opencode/SkillDirectory";
 import { Logger } from "../services/Logger";
 import {
   AttachmentView,
@@ -14,7 +15,6 @@ import {
   McpInput,
   PermissionReply,
   SettingsView,
-  SkillInput,
   UiSnapshot,
   ViewSection,
   WebviewToHostMessage,
@@ -27,11 +27,13 @@ const SECTION_KEY = "opencodeRaineye.section";
 export class WorkspaceController implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<UiSnapshot>();
   private readonly connection: ConnectionManager;
+  private readonly configStore: OpenCodeConfigStore;
   private adapter?: OpenCodeAdapter;
   private refreshTimer?: NodeJS.Timeout;
   private eventRetryTimer?: NodeJS.Timeout;
   private workspaceFileCache?: { loadedAt: number; files: FileSuggestion[] };
   private disposed = false;
+  private legacyMigrationChecked = false;
   private snapshot: UiSnapshot;
 
   readonly onDidChange = this.emitter.event;
@@ -45,6 +47,7 @@ export class WorkspaceController implements vscode.Disposable {
     const config = vscode.workspace.getConfiguration("opencodeRaineye");
     const defaultMode = config.get<ChatMode>("defaultMode", "craft");
     this.connection = new ConnectionManager(context, logger, workspacePath);
+    this.configStore = new OpenCodeConfigStore(workspacePath);
     this.snapshot = {
       section: context.workspaceState.get<ViewSection>(SECTION_KEY, "chat"),
       connection: this.connection.state,
@@ -146,8 +149,8 @@ export class WorkspaceController implements vscode.Disposable {
       case "save-mcp":
         await this.saveMcp(message.mcp);
         return;
-      case "save-skill":
-        await this.saveSkill(message.skill);
+      case "select-skill-folder":
+        await this.selectSkillFolder(message.scope);
         return;
       case "save-custom-model":
         await this.saveCustomModel(message.model);
@@ -157,6 +160,12 @@ export class WorkspaceController implements vscode.Disposable {
         return;
       case "disconnect-mcp":
         await this.mcpAction("断开 MCP 失败", (adapter) => adapter.disconnectMcp(message.name));
+        return;
+      case "reconnect-mcp":
+        await this.mcpAction("重连 MCP 失败", (adapter) => adapter.reconnectMcp(message.name));
+        return;
+      case "delete-mcp":
+        await this.deleteMcp(message.name, message.scope);
         return;
       case "authenticate-mcp":
         await this.mcpAction("MCP OAuth 认证失败", (adapter) => adapter.authenticateMcp(message.name));
@@ -183,7 +192,10 @@ export class WorkspaceController implements vscode.Disposable {
     this.update({ section });
     await this.context.workspaceState.update(SECTION_KEY, section);
     if (section === "history") await this.refreshSessions();
-    if (section === "settings") await this.refreshMcps();
+    if (section === "settings") {
+      await this.maybeMigrateLegacyConfigs();
+      await Promise.all([this.refreshCatalog(), this.refreshMcps()]);
+    }
   }
 
   dispose(): void {
@@ -317,7 +329,17 @@ export class WorkspaceController implements vscode.Disposable {
   private async refreshMcps(): Promise<void> {
     const adapter = this.adapter;
     if (!adapter) return;
-    this.update({ mcps: await adapter.getMcps() });
+    const [project, global] = await Promise.all([
+      this.configStore.read("project").catch((error) => {
+        this.logger.warn("Failed to read project OpenCode config", error);
+        return {};
+      }),
+      this.configStore.read("global").catch((error) => {
+        this.logger.warn("Failed to read global OpenCode config", error);
+        return {};
+      }),
+    ]);
+    this.update({ mcps: await adapter.getMcps(project, global) });
   }
 
   private async refreshPending(): Promise<void> {
@@ -328,10 +350,8 @@ export class WorkspaceController implements vscode.Disposable {
   }
 
   private async newSession(): Promise<void> {
-    const adapter = this.requireAdapter();
-    const session = await this.runWithError("新建对话失败", () => adapter.createSession(this.snapshot.mode, this.snapshot.selectedModel));
-    if (!session) return;
-    this.update({ currentSessionId: session.id, messages: [], diffs: [], section: "chat", sessions: [session, ...this.snapshot.sessions] });
+    this.requireAdapter();
+    this.update({ currentSessionId: undefined, messages: [], diffs: [], section: "chat" });
   }
 
   private async openSession(sessionId: string): Promise<void> {
@@ -358,9 +378,11 @@ export class WorkspaceController implements vscode.Disposable {
     if (!text.trim() && attachments.length === 0) return;
     const adapter = this.requireAdapter();
     let sessionId = this.snapshot.currentSessionId;
+    let createdForSend = false;
     if (!sessionId) {
       const session = await adapter.createSession(mode, model);
       sessionId = session.id;
+      createdForSend = true;
       this.update({ currentSessionId: sessionId, sessions: [session, ...this.snapshot.sessions] });
     }
     this.update({ busy: true, mode, selectedModel: model, selectedSkill: skill, error: undefined });
@@ -372,6 +394,13 @@ export class WorkspaceController implements vscode.Disposable {
       await adapter.send({ sessionId, text, mode, model, skill, attachments });
       this.scheduleConversationRefresh();
     } catch (error) {
+      if (createdForSend) {
+        await adapter.deleteSession(sessionId).catch((cleanupError) => this.logger.warn("Failed to remove empty session", cleanupError));
+        this.update({
+          currentSessionId: undefined,
+          sessions: this.snapshot.sessions.filter((session) => session.id !== sessionId),
+        });
+      }
       this.update({ busy: false, error: readableError(error) });
       vscode.window.showErrorMessage(`发送失败：${readableError(error)}`);
     }
@@ -498,57 +527,131 @@ export class WorkspaceController implements vscode.Disposable {
 
   private async saveMcp(mcp: McpInput): Promise<void> {
     const adapter = this.requireAdapter();
-    await this.runWithError("保存 MCP 配置失败", () => adapter.saveMcp(mcp));
+    const normalized = mcp.type === "local" ? await this.validateLocalMcp(mcp) : mcp;
+    const saved = await this.runWithError("保存 MCP 配置失败", async () => {
+      const { name, scope, ...config } = normalized;
+      await this.configStore.upsertMcp(scope, name, config);
+      const persisted = (await this.configStore.read(scope)).mcp?.[name];
+      if (!persisted || !("type" in persisted)) throw new Error(`无法从官方配置读取 MCP “${name}”`);
+      await adapter.applyMcp({ name, scope, ...persisted });
+      return true;
+    });
+    if (!saved) return;
     await this.refreshMcps();
+    vscode.window.showInformationMessage(`MCP “${mcp.name}” 已写入 OpenCode 并尝试连接。`);
   }
 
-  private async saveSkill(skill: SkillInput): Promise<void> {
-    if (skill.kind === "create") {
-      const directory = skill.scope === "project"
-        ? resolveInsideWorkspace(path.join(".opencode", "skills", skill.name), this.workspacePath)
-        : path.join(globalOpenCodeConfigDirectory(), "skills", skill.name);
-      const file = path.join(directory, "SKILL.md");
-      const uri = vscode.Uri.file(file);
-      let exists = false;
-      try {
-        await vscode.workspace.fs.stat(uri);
-        exists = true;
-      } catch {
-        // A missing target is the normal create flow.
-      }
-      if (exists) {
-        const answer = await vscode.window.showWarningMessage(
-          `Skill “${skill.name}” 已存在，是否覆盖 SKILL.md？`,
-          { modal: true },
-          "覆盖",
-        );
-        if (answer !== "覆盖") return;
-      }
-      await vscode.workspace.fs.createDirectory(vscode.Uri.file(directory));
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(renderSkillMarkdown(skill), "utf8"));
-      const location = skill.scope === "project" ? ".opencode/skills" : path.join(globalOpenCodeConfigDirectory(), "skills");
-      vscode.window.showInformationMessage(`Skill “${skill.name}” 已保存到 ${location}。重启 OpenCode 后生效。`);
-    } else {
-      const adapter = this.requireAdapter();
-      const saved = await this.runWithError("保存 Skill 来源失败", async () => {
-        await adapter.saveSkillSource(skill);
-        return true;
-      });
-      if (!saved) return;
-      vscode.window.showInformationMessage("Skill 来源已写入 OpenCode 官方配置。重启 OpenCode 后生效。");
+  private async selectSkillFolder(scope: "project" | "global"): Promise<void> {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      canSelectFiles: false,
+      canSelectFolders: true,
+      defaultUri: vscode.Uri.file(this.workspacePath),
+      openLabel: "选择 Skill 文件夹",
+      title: "选择根目录包含 SKILL.md 的文件夹",
+    });
+    if (!picked?.[0]) return;
+
+    const entries = await vscode.workspace.fs.readDirectory(picked[0]);
+    const manifest = findRootSkillManifest(entries.map(([name, type]) => [name, Boolean(type & vscode.FileType.File)]));
+    if (!manifest) {
+      vscode.window.showErrorMessage("所选文件夹根目录没有 SKILL.md，未添加 Skill。");
+      return;
     }
+
+    const source = skillSourcePath(picked[0].fsPath, this.workspacePath, scope);
+    const adapter = this.requireAdapter();
+    const saved = await this.runWithError("保存 Skill 文件夹失败", async () => {
+      await this.configStore.addSkillPath(scope, source);
+      await adapter.reloadInstance();
+      return true;
+    });
+    if (!saved) return;
     await this.refreshCatalog();
+    vscode.window.showInformationMessage(`已注册 Skill 文件夹：${picked[0].fsPath}。OpenCode 配置已重新加载。`);
+  }
+
+  private async validateLocalMcp(mcp: Extract<McpInput, { type: "local" }>): Promise<Extract<McpInput, { type: "local" }>> {
+    const cwd = path.resolve(this.workspacePath, mcp.cwd?.trim() || ".");
+    let cwdStat: vscode.FileStat;
+    try {
+      cwdStat = await vscode.workspace.fs.stat(vscode.Uri.file(cwd));
+    } catch {
+      throw new Error(`MCP 工作目录不存在：${cwd}`);
+    }
+    if (!(cwdStat.type & vscode.FileType.Directory)) throw new Error(`MCP 工作目录不是文件夹：${cwd}`);
+
+    const pythonScript = mcp.command.find((argument) => /\.py$/i.test(argument));
+    if (pythonScript) {
+      const scriptPath = path.isAbsolute(pythonScript) ? path.normalize(pythonScript) : path.resolve(cwd, pythonScript);
+      let scriptStat: vscode.FileStat;
+      try {
+        scriptStat = await vscode.workspace.fs.stat(vscode.Uri.file(scriptPath));
+      } catch {
+        throw new Error(`MCP Python 脚本不存在：${scriptPath}。请检查命令或工作目录。`);
+      }
+      if (!(scriptStat.type & vscode.FileType.File)) throw new Error(`MCP Python 脚本不是文件：${scriptPath}`);
+    }
+    return { ...mcp, cwd };
   }
 
   private async saveCustomModel(model: CustomModelInput): Promise<void> {
     const adapter = this.requireAdapter();
     const saved = await this.runWithError("保存自定义模型失败", async () => {
-      await adapter.saveCustomModel(model);
+      const current = await this.configStore.read(model.scope);
+      const provider = buildCustomProviderConfig(current.provider?.[model.providerId], model);
+      await this.configStore.upsertProvider(model.scope, model.providerId.trim(), provider);
+      await adapter.reloadInstance();
       return true;
     });
     if (!saved) return;
     await this.refreshCatalog();
-    vscode.window.showInformationMessage(`自定义模型 ${model.providerId}/${model.modelId} 已写入 OpenCode 配置。重启 OpenCode 后生效。`);
+    vscode.window.showInformationMessage(`自定义模型 ${model.providerId}/${model.modelId} 已写入官方配置并重新加载。`);
+  }
+
+  private async deleteMcp(name: string, scope: ConfigScope): Promise<void> {
+    const answer = await vscode.window.showWarningMessage(
+      `删除 MCP “${name}”？将从 ${scope === "global" ? "全局" : "项目"} OpenCode 配置中移除。`,
+      { modal: true },
+      "删除",
+    );
+    if (answer !== "删除") return;
+    const adapter = this.requireAdapter();
+    const deleted = await this.runWithError("删除 MCP 失败", async () => {
+      await this.configStore.deleteMcp(scope, name);
+      await adapter.reloadInstance();
+      return true;
+    });
+    if (!deleted) return;
+    await this.refreshMcps();
+    vscode.window.showInformationMessage(`MCP “${name}” 已删除。`);
+  }
+
+  private async maybeMigrateLegacyConfigs(): Promise<void> {
+    if (this.legacyMigrationChecked || !this.adapter) return;
+    this.legacyMigrationChecked = true;
+    const infos = (await Promise.all([
+      this.configStore.detectLegacy("project").catch((error) => {
+        this.logger.warn("Failed to inspect legacy project OpenCode config", error);
+        return undefined;
+      }),
+      this.configStore.detectLegacy("global").catch((error) => {
+        this.logger.warn("Failed to inspect legacy global OpenCode config", error);
+        return undefined;
+      }),
+    ])).filter((info) => info !== undefined);
+    if (!infos.length) return;
+    const details = infos.map((info) => `${info.scope === "global" ? "全局" : "项目"} ${info.path}`).join("\n");
+    const answer = await vscode.window.showWarningMessage(
+      `检测到旧版 RainEye 写入的 config.json，OpenCode 重启不会加载它：\n${details}\n是否迁移到官方 opencode.json？`,
+      { modal: true },
+      "迁移",
+    );
+    if (answer !== "迁移") return;
+    const targets: string[] = [];
+    for (const info of infos) targets.push(await this.configStore.migrateLegacy(info));
+    await this.adapter.reloadInstance();
+    vscode.window.showInformationMessage(`旧配置已迁移：${targets.join("，")}`);
   }
 
   private async mcpAction(label: string, action: (adapter: OpenCodeAdapter) => Promise<void>): Promise<void> {
@@ -610,11 +713,6 @@ function readSettings(): SettingsView {
     mdnsDomain: config.get<string>("mdnsDomain", "opencode.local"),
     defaultMode: config.get<ChatMode>("defaultMode", "craft"),
   };
-}
-
-function globalOpenCodeConfigDirectory(): string {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
-  return path.join(xdgConfigHome ? path.resolve(xdgConfigHome) : path.join(os.homedir(), ".config"), "opencode");
 }
 
 function referenceForUri(uri: vscode.Uri, selection: vscode.Selection | undefined, workspacePath: string): AttachmentView {

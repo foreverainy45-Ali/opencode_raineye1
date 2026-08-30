@@ -2,7 +2,7 @@
 
 OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界面参考 CodeBuddy，但会话、模型、Agent、Skill、MCP、权限请求与 Diff 都直接来自官方 OpenCode Server；扩展不实现第二套 Agent Runtime、Skill Loader 或 MCP Client。
 
-当前版本：`0.3.0`，首个验证目标为 VS Code 1.94+、Windows 11 与 OpenCode 1.18.25。
+当前版本：`0.3.1`，首个验证目标为 VS Code 1.94+、Windows 11 与 OpenCode 1.18.25。
 
 ## 已实现
 
@@ -15,7 +15,7 @@ OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界�
 - Craft 使用 OpenCode 原生 Permission，在 `edit`/`bash` 执行前审批；结束后显示官方 Session Diff。
 - Plan 映射官方 `plan` Agent，并关闭修改/命令类工具。
 - MCP 设置严格使用官方 `local`/`remote` schema；保存时持久化配置并通过官方动态 API 接入当前进程。
-- Skill 列表来自官方 `/skill`；设置页可创建项目/全局 Skill 或注册 `skills.paths` / `skills.urls`。
+- Skill 列表来自官方 `/skill`；设置页选择根目录含 `SKILL.md` 的文件夹并注册到 `skills.paths`。
 - 自定义模型表单写入 OpenCode 原生 Provider 配置，支持 Base URL、API Key、OpenAI-compatible/Responses 和模型能力参数。
 
 详细设计与已确认边界见 [OPENCODE_PLUGIN_DEVELOPMENT_PLAN.md](./OPENCODE_PLUGIN_DEVELOPMENT_PLAN.md)。
@@ -26,7 +26,7 @@ OpenCode RainEye 是一个面向 VS Code 的 OpenCode 侧边栏客户端。界�
 - `.vscode/`：从仓库根目录启动 Extension Development Host 的配置。
 - `examples/python-mcp/`：返回“测试成功”的零依赖 Python MCP 与可粘贴配置。
 - `.opencode/skills/raineye-python-test/`：调用 Python 脚本的 OpenCode Skill 示例。
-- `out/opencode-raineye-0.3.0.vsix`：本地构建产物，默认不提交 Git。
+- `out/opencode-raineye-0.3.1.vsix`：本地构建产物，默认不提交 Git。
 - `sst-dev.opencode-0.0.13.vsix`、`vsix_extracted/`：官方插件参考基线。
 - `界面页.png`：界面参考图。
 
@@ -46,7 +46,7 @@ npm.cmd run verify-vsix
 安装本地包：
 
 ```powershell
-code.cmd --install-extension out\opencode-raineye-0.3.0.vsix --force
+code.cmd --install-extension out\opencode-raineye-0.3.1.vsix --force
 ```
 
 打包后的扩展 ID 为 `foreverainy45-ali.opencode-raineye`。

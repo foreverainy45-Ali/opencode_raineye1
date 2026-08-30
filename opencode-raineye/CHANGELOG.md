@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 - 2026-08-30
+
+- 修复 OpenCode 1.18.25 `/config` 接口写入非启动配置 `config.json`，导致 MCP 和自定义模型重启后丢失的问题；改为安全修改官方 `opencode.json/opencode.jsonc`。
+- 检测旧版项目/全局 `config.json` 并提供迁移提示，迁移后自动重新加载 OpenCode 实例。
+- MCP 增加三点菜单，支持编辑、删除、重连、连接/断开与 OAuth；本地 MCP 增加 `cwd` 和 Python 脚本存在性检查。
+- Skill 改为选择文件夹，根目录存在 `SKILL.md` 才允许注册，不再手填名称、描述或正文。
+- 自定义模型保存后重新加载 OpenCode 配置，立即刷新模型选择器。
+- 新对话改为发送第一条消息时才创建，历史列表隐藏没有消息的会话，发送失败时清理空会话。
+
 ## 0.3.0 - 2026-08-29
 
 - 设置页支持创建项目/全局 OpenCode Skill，以及注册 `skills.paths` 和 `skills.urls`。

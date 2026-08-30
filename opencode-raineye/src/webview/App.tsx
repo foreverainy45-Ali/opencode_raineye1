@@ -65,7 +65,7 @@ export function App(): React.JSX.Element {
         : snapshot.section === "history"
           ? <History sessions={snapshot.sessions} currentSessionId={snapshot.currentSessionId} />
           : snapshot.section === "settings"
-            ? <Settings settings={snapshot.settings} connection={snapshot.connection} mcps={snapshot.mcps} skills={snapshot.skills} models={snapshot.models} />
+            ? <Settings settings={snapshot.settings} connection={snapshot.connection} mcps={snapshot.mcps} skills={snapshot.skills} models={snapshot.models} workspacePath={snapshot.workspacePath} />
             : (
               <main className="chat-page">
                 <div className="chat-heading">

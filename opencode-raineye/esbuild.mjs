@@ -8,6 +8,7 @@ const options = {
   external: ["vscode"],
   format: "cjs",
   platform: "node",
+  mainFields: ["module", "main"],
   target: "node20",
   sourcemap: watch,
   minify: !watch,
@@ -20,4 +21,3 @@ if (watch) {
 } else {
   await esbuild.build(options)
 }
-

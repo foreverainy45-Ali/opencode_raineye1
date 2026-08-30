@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import type { ConnectionState, CustomModelInput, McpInput, McpServerView, ModelOption, SettingsView, SkillInput, SkillOption } from "../../shared/protocol";
+import type { ConnectionState, CustomModelInput, McpInput, McpServerView, ModelOption, SettingsView, SkillOption } from "../../shared/protocol";
 import { post } from "../vscode";
 
 export function Settings({
@@ -8,14 +8,17 @@ export function Settings({
   mcps,
   skills,
   models,
+  workspacePath,
 }: {
   settings: SettingsView;
   connection: ConnectionState;
   mcps: McpServerView[];
   skills: SkillOption[];
   models: ModelOption[];
+  workspacePath?: string;
 }): React.JSX.Element {
   const [settings, setSettings] = useState(initial);
+  const [editingMcp, setEditingMcp] = useState<McpServerView>();
   useEffect(() => setSettings(initial), [initial]);
   return (
     <main className="page settings-page">
@@ -42,19 +45,24 @@ export function Settings({
       <section className="settings-card">
         <div className="section-title"><div><h3>MCP</h3><p>配置直接写入 OpenCode；远程连接由官方运行时自动尝试 HTTP 与 SSE。</p></div><span className="count">{mcps.length}</span></div>
         <div className="mcp-list">
-          {mcps.map((mcp) => <McpRow key={`${mcp.scope}-${mcp.name}`} mcp={mcp} />)}
+          {mcps.map((mcp) => <McpRow key={`${mcp.scope}-${mcp.name}`} mcp={mcp} onEdit={() => setEditingMcp(mcp)} />)}
           {!mcps.length && <div className="empty-list">尚未配置 MCP Server</div>}
         </div>
-        <McpForm />
+        <McpForm
+          key={editingMcp ? `${editingMcp.scope}-${editingMcp.name}` : "new"}
+          workspacePath={workspacePath}
+          initial={editingMcp}
+          onClose={() => setEditingMcp(undefined)}
+        />
       </section>
 
       <section className="settings-card">
-        <div className="section-title"><div><h3>Skills</h3><p>由 OpenCode 原生扫描与加载，RainEye 不读取或注入 Skill 正文。</p></div><span className="count">{skills.length}</span></div>
+        <div className="section-title"><div><h3>Skills</h3><p>选择根目录包含 SKILL.md 的文件夹，由 OpenCode 原生扫描与加载。</p></div><span className="count">{skills.length}</span></div>
         <div className="skill-list">
           {skills.slice(0, 30).map((skill) => <div key={skill.name}><strong>{skill.name}</strong><span>{skill.description}</span><code>{skill.location}</code></div>)}
           {!skills.length && <div className="empty-list">未发现 Skill。可在 .opencode/skills、.agents/skills 等官方目录添加。</div>}
         </div>
-        <SkillForm />
+        <SkillFolderPicker />
       </section>
     </main>
   );
@@ -133,65 +141,16 @@ function CustomModelForm(): React.JSX.Element {
   );
 }
 
-function SkillForm(): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<SkillInput["kind"]>("create");
+function SkillFolderPicker(): React.JSX.Element {
   const [scope, setScope] = useState<"project" | "global">("project");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [instructions, setInstructions] = useState("# 使用步骤\n\n1. 在这里填写 Skill 指令。");
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    try {
-      let skill: SkillInput;
-      if (kind === "create") {
-        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) throw new Error("Skill 名称必须是 1–64 位小写 kebab-case");
-        if (!description.trim() || description.length > 1024) throw new Error("描述必填且不能超过 1024 字符");
-        if (!instructions.trim()) throw new Error("Skill 指令不能为空");
-        skill = { kind, scope, name, description: description.trim(), instructions };
-      } else {
-        if (!value.trim()) throw new Error(kind === "path" ? "请输入 Skill 目录" : "请输入 Skill Catalog URL");
-        if (kind === "url") {
-          const url = new URL(value);
-          if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("URL 必须使用 HTTP 或 HTTPS");
-        }
-        skill = { kind, scope, value: value.trim() };
-      }
-      post({ type: "save-skill", skill });
-      setError("");
-      setOpen(false);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-    }
-  };
-
-  if (!open) return <button className="add-mcp" onClick={() => setOpen(true)}>＋ 添加 Skill</button>;
   return (
-    <form className="mcp-form" onSubmit={submit}>
-      <div className="section-title"><h4>添加 Skill</h4><button type="button" className="icon-button" onClick={() => setOpen(false)}>×</button></div>
-      <div className="segmented">
-        <button type="button" className={kind === "create" ? "active" : ""} onClick={() => setKind("create")}>新建项目 Skill</button>
-        <button type="button" className={kind === "path" ? "active" : ""} onClick={() => setKind("path")}>注册目录</button>
-        <button type="button" className={kind === "url" ? "active" : ""} onClick={() => setKind("url")}>注册 URL</button>
-      </div>
+    <div className="mcp-form skill-folder-picker">
       <div className="form-grid">
-        {kind === "create" ? <>
-          <label>作用域<select value={scope} onChange={(event) => setScope(event.target.value as "project" | "global")}><option value="project">当前项目</option><option value="global">全局</option></select></label>
-          <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="my-skill" /></label>
-          <label className="wide">保存位置<input value={scope === "project" ? ".opencode/skills/<name>/SKILL.md" : "~/.config/opencode/skills/<name>/SKILL.md"} disabled /></label>
-          <label className="wide">描述<input value={description} maxLength={1024} onChange={(event) => setDescription(event.target.value)} placeholder="说明该 Skill 做什么，以及何时使用" /></label>
-          <label className="wide">SKILL.md 正文<textarea className="skill-editor" value={instructions} onChange={(event) => setInstructions(event.target.value)} /></label>
-        </> : <>
-          <label>作用域<select value={scope} onChange={(event) => setScope(event.target.value as "project" | "global")}><option value="project">当前项目</option><option value="global">全局</option></select></label>
-          <label className="wide">{kind === "path" ? "Skill 目录" : "Skill Catalog URL"}<input value={value} onChange={(event) => setValue(event.target.value)} placeholder={kind === "path" ? "./team-skills" : "https://example.com/opencode/skills/"} /></label>
-        </>}
+        <label>作用域<select value={scope} onChange={(event) => setScope(event.target.value as "project" | "global")}><option value="project">当前项目</option><option value="global">全局</option></select></label>
+        <label className="wide"><small>只注册所选文件夹，不复制或修改其中内容；根目录必须存在 OpenCode 官方文件名 SKILL.md。</small></label>
       </div>
-      {error && <div className="notice error">{error}</div>}
-      <div className="settings-actions"><button type="button" onClick={() => setOpen(false)}>取消</button><button className="primary" type="submit">保存 Skill</button></div>
-    </form>
+      <button className="add-mcp" onClick={() => post({ type: "select-skill-folder", scope })}>选择 Skill 文件夹…</button>
+    </div>
   );
 }
 
@@ -199,31 +158,38 @@ function StatusPill({ connection }: { connection: ConnectionState }): React.JSX.
   return <span className={`status-pill ${connection.phase}`}><i />{connection.phase === "connected" ? connection.message : connection.phase}</span>;
 }
 
-function McpRow({ mcp }: { mcp: McpServerView }): React.JSX.Element {
+function McpRow({ mcp, onEdit }: { mcp: McpServerView; onEdit(): void }): React.JSX.Element {
   return (
     <div className="mcp-row">
       <div className={`mcp-status ${mcp.status}`} />
-      <div className="mcp-info"><strong>{mcp.name}</strong><span>{mcp.type === "local" ? mcp.command?.join(" ") || "本地命令" : mcp.url}</span><small>{mcp.scope === "global" ? "全局" : "项目"} · {mcp.status}{mcp.detail ? ` · ${mcp.detail}` : ""}</small></div>
-      <div className="mcp-actions">
-        {(mcp.status === "needs_auth" || mcp.status === "needs_client_registration") && <button onClick={() => post({ type: "authenticate-mcp", name: mcp.name })}>认证</button>}
-        {mcp.status === "connected"
-          ? <button onClick={() => post({ type: "disconnect-mcp", name: mcp.name })}>断开</button>
-          : <button onClick={() => post({ type: "connect-mcp", name: mcp.name })}>连接</button>}
-      </div>
+      <div className="mcp-info"><strong>{mcp.name}</strong><span>{mcp.type === "local" ? mcp.command?.join(" ") || "本地命令" : mcp.url}</span><small>{mcp.scope === "global" ? "全局" : "项目"} · {mcp.status}{mcp.cwd ? ` · cwd ${mcp.cwd}` : ""}{mcp.detail ? ` · ${mcp.detail}` : ""}</small></div>
+      <details className="mcp-menu">
+        <summary title="MCP 操作" aria-label="MCP 操作">⋯</summary>
+        <div>
+          <button onClick={onEdit}>编辑</button>
+          <button onClick={() => post({ type: "reconnect-mcp", name: mcp.name })}>重连</button>
+          {mcp.status === "connected"
+            ? <button onClick={() => post({ type: "disconnect-mcp", name: mcp.name })}>断开</button>
+            : <button onClick={() => post({ type: "connect-mcp", name: mcp.name })}>连接</button>}
+          {(mcp.status === "needs_auth" || mcp.status === "needs_client_registration") && <button onClick={() => post({ type: "authenticate-mcp", name: mcp.name })}>OAuth 认证</button>}
+          <button className="danger" onClick={() => post({ type: "delete-mcp", name: mcp.name, scope: mcp.scope })}>删除</button>
+        </div>
+      </details>
     </div>
   );
 }
 
-function McpForm(): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [scope, setScope] = useState<"project" | "global">("project");
-  const [type, setType] = useState<"local" | "remote">("local");
-  const [command, setCommand] = useState('["npx", "-y", "@modelcontextprotocol/server-filesystem", "."]');
-  const [url, setUrl] = useState("");
-  const [extras, setExtras] = useState("{}");
-  const [oauth, setOauth] = useState("");
-  const [timeout, setTimeoutValue] = useState("");
+function McpForm({ workspacePath, initial, onClose }: { workspacePath?: string; initial?: McpServerView; onClose(): void }): React.JSX.Element {
+  const [open, setOpen] = useState(Boolean(initial));
+  const [name, setName] = useState(initial?.name ?? "");
+  const [scope, setScope] = useState<"project" | "global">(initial?.scope ?? "project");
+  const [type, setType] = useState<"local" | "remote">(initial?.type ?? "local");
+  const [command, setCommand] = useState(JSON.stringify(initial?.command ?? ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."]));
+  const [cwd, setCwd] = useState(initial?.cwd ?? workspacePath ?? "");
+  const [url, setUrl] = useState(initial?.url ?? "");
+  const [extras, setExtras] = useState("");
+  const [oauth, setOauth] = useState(initial?.oauth === "disabled" ? "false" : "");
+  const [timeout, setTimeoutValue] = useState(initial?.timeout ? String(initial.timeout) : "");
   const [error, setError] = useState("");
 
   const submit = (event: FormEvent) => {
@@ -236,7 +202,7 @@ function McpForm(): React.JSX.Element {
       if (type === "local") {
         const commandValue = parseStringArray(command, "命令");
         const environment = parseStringRecord(extras, "环境变量");
-        input = { name: name.trim(), scope, type, command: commandValue, environment, enabled: true, timeout: timeoutNumber };
+        input = { name: name.trim(), scope, type, command: commandValue, cwd: cwd.trim() || undefined, environment, enabled: true, timeout: timeoutNumber };
       } else {
         if (!url.trim()) throw new Error("请输入远程 MCP URL");
         const headers = parseStringRecord(extras, "请求头");
@@ -246,6 +212,7 @@ function McpForm(): React.JSX.Element {
       post({ type: "save-mcp", mcp: input });
       setError("");
       setOpen(false);
+      onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     }
@@ -254,20 +221,23 @@ function McpForm(): React.JSX.Element {
   if (!open) return <button className="add-mcp" onClick={() => setOpen(true)}>＋ 添加 MCP Server</button>;
   return (
     <form className="mcp-form" onSubmit={submit}>
-      <div className="section-title"><h4>添加或更新 MCP</h4><button type="button" className="icon-button" onClick={() => setOpen(false)}>×</button></div>
+      <div className="section-title"><h4>{initial ? `编辑 ${initial.name}` : "添加 MCP"}</h4><button type="button" className="icon-button" onClick={() => { setOpen(false); onClose(); }}>×</button></div>
       <div className="segmented"><button type="button" className={type === "local" ? "active" : ""} onClick={() => setType("local")}>本地 stdio</button><button type="button" className={type === "remote" ? "active" : ""} onClick={() => setType("remote")}>远程</button></div>
       <div className="form-grid">
-        <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="filesystem" /></label>
+        <label>名称<input value={name} disabled={Boolean(initial)} onChange={(event) => setName(event.target.value)} placeholder="filesystem" /></label>
         <label>作用域<select value={scope} onChange={(event) => setScope(event.target.value as "project" | "global")}><option value="project">当前项目</option><option value="global">全局</option></select></label>
         {type === "local"
-          ? <label className="wide">命令（JSON 字符串数组）<textarea value={command} onChange={(event) => setCommand(event.target.value)} /></label>
+          ? <>
+            <label className="wide">命令（JSON 字符串数组）<textarea value={command} onChange={(event) => setCommand(event.target.value)} /></label>
+            <label className="wide">工作目录（cwd）<input value={cwd} onChange={(event) => setCwd(event.target.value)} placeholder={workspacePath || "绝对路径；留空使用当前工作区"} /><small>相对脚本路径从这里解析。保存前会检查工作目录和命令中的 .py 文件是否存在。</small></label>
+          </>
           : <label className="wide">URL<input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://server.example/mcp" /></label>}
-        <label className="wide">{type === "local" ? "环境变量" : "请求头"}（JSON，对敏感值谨慎保存）<textarea value={extras} onChange={(event) => setExtras(event.target.value)} /></label>
+        <label className="wide">{type === "local" ? "环境变量" : "请求头"}（JSON）<textarea value={extras} onChange={(event) => setExtras(event.target.value)} placeholder={initial ? "留空则保留现有敏感配置" : "{}"} /><small>{initial ? "出于安全原因不会把已有敏感值回传到页面；留空会原样保留。" : "对令牌等敏感值建议使用 {env:VAR} 或 {file:path}。"}</small></label>
         {type === "remote" && <label className="wide">OAuth（留空自动、false 禁用、或 JSON 配置）<textarea value={oauth} onChange={(event) => setOauth(event.target.value)} /></label>}
         <label>超时毫秒（可选）<input value={timeout} onChange={(event) => setTimeoutValue(event.target.value)} /></label>
       </div>
       {error && <div className="notice error">{error}</div>}
-      <div className="settings-actions"><button type="button" onClick={() => setOpen(false)}>取消</button><button className="primary" type="submit">保存到 OpenCode</button></div>
+      <div className="settings-actions"><button type="button" onClick={() => { setOpen(false); onClose(); }}>取消</button><button className="primary" type="submit">{initial ? "保存修改" : "保存到 OpenCode"}</button></div>
     </form>
   );
 }

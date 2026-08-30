@@ -191,10 +191,17 @@ pre { white-space: pre-wrap; word-break: break-word; }
 .settings-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 12px; }
 .count { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--panel-strong); color: var(--muted); }
 .mcp-list { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
-.mcp-row { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.mcp-row { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .mcp-status { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }.mcp-status.connected { background: var(--success); }.mcp-status.failed { background: var(--danger); }.mcp-status.needs_auth, .mcp-status.needs_client_registration { background: #d5a641; }
 .mcp-info { min-width: 0; flex: 1; display: flex; flex-direction: column; }.mcp-info span, .mcp-info small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: 10px; }
 .mcp-actions { display: flex; gap: 4px; }.mcp-actions button { min-height: 25px; padding: 2px 6px; font-size: 10px; }
+.mcp-menu { position: relative; flex: 0 0 auto; }
+.mcp-menu summary { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; cursor: pointer; list-style: none; font-size: 18px; line-height: 1; }
+.mcp-menu summary::-webkit-details-marker { display: none; }
+.mcp-menu summary:hover, .mcp-menu[open] summary { background: var(--hover); }
+.mcp-menu > div { position: absolute; z-index: 12; top: 31px; right: 0; min-width: 108px; display: flex; flex-direction: column; gap: 2px; padding: 4px; border: 1px solid var(--vscode-menu-border, var(--border)); border-radius: 7px; background: var(--vscode-menu-background, var(--vscode-editor-background)); box-shadow: 0 7px 22px rgba(0, 0, 0, .24); }
+.mcp-menu button { width: 100%; min-height: 27px; padding: 4px 7px; border: 0; background: transparent; text-align: left; font-size: 11px; }
+.skill-folder-picker .form-grid { margin-top: 0; }
 .add-mcp { width: 100%; margin-top: 9px; border-style: dashed; color: var(--vscode-textLink-foreground); }
 .mcp-form { margin-top: 10px; padding: 11px; border: 1px solid var(--vscode-focusBorder, var(--border)); border-radius: 8px; background: var(--vscode-editor-background); }
 .segmented { display: flex; margin-top: 10px; }.segmented button { flex: 1; border-radius: 0; }.segmented button:first-child { border-radius: 6px 0 0 6px; }.segmented button:last-child { border-radius: 0 6px 6px 0; }.segmented button.active { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); border-color: var(--accent); }

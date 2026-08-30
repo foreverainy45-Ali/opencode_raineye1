@@ -31,6 +31,7 @@ export interface SessionSummary {
   additions?: number;
   deletions?: number;
   files?: number;
+  hasMessages?: boolean;
 }
 
 export type MessageRole = "user" | "assistant";
@@ -244,19 +245,10 @@ export interface RemoteMcpInput {
 
 export type McpInput = LocalMcpInput | RemoteMcpInput;
 
-export type SkillInput =
-  | {
-    kind: "create";
-    scope: "project" | "global";
-    name: string;
-    description: string;
-    instructions: string;
-  }
-  | {
-    kind: "path" | "url";
-    scope: "project" | "global";
-    value: string;
-  };
+export interface SkillFolderInput {
+  scope: "project" | "global";
+  value: string;
+}
 
 export interface CustomModelInput {
   scope: "project" | "global";
@@ -296,10 +288,12 @@ export type WebviewToHostMessage =
   | { type: "reject-question"; requestId: string }
   | { type: "save-settings"; settings: SettingsView }
   | { type: "save-mcp"; mcp: McpInput }
-  | { type: "save-skill"; skill: SkillInput }
+  | { type: "select-skill-folder"; scope: "project" | "global" }
   | { type: "save-custom-model"; model: CustomModelInput }
   | { type: "connect-mcp"; name: string }
   | { type: "disconnect-mcp"; name: string }
+  | { type: "reconnect-mcp"; name: string }
+  | { type: "delete-mcp"; name: string; scope: "project" | "global" }
   | { type: "authenticate-mcp"; name: string }
   | { type: "refresh" }
   | { type: "open-tui" }
@@ -322,6 +316,8 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
     case "open-tui":
     case "open-output":
       return true;
+    case "select-skill-folder":
+      return message.scope === "project" || message.scope === "global";
     case "search-files":
       return Number.isInteger(message.requestId)
         && Number(message.requestId) >= 0
@@ -359,14 +355,17 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
       return isSettings(message.settings);
     case "save-mcp":
       return isMcp(message.mcp);
-    case "save-skill":
-      return isSkillInput(message.skill);
     case "save-custom-model":
       return isCustomModelInput(message.model);
     case "connect-mcp":
     case "disconnect-mcp":
+    case "reconnect-mcp":
     case "authenticate-mcp":
       return typeof message.name === "string" && message.name.length > 0;
+    case "delete-mcp":
+      return typeof message.name === "string"
+        && message.name.length > 0
+        && (message.scope === "project" || message.scope === "global");
     default:
       return false;
   }
@@ -416,29 +415,6 @@ function isMcp(value: unknown): value is McpInput {
     }
   }
   return false;
-}
-
-function isSkillInput(value: unknown): value is SkillInput {
-  if (!value || typeof value !== "object") return false;
-  const skill = value as Record<string, unknown>;
-  if (skill.kind === "create") {
-    return (skill.scope === "project" || skill.scope === "global")
-      && typeof skill.name === "string"
-      && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skill.name)
-      && skill.name.length <= 64
-      && typeof skill.description === "string"
-      && skill.description.trim().length >= 1
-      && skill.description.length <= 1024
-      && typeof skill.instructions === "string"
-      && skill.instructions.trim().length > 0
-      && skill.instructions.length <= 1_000_000;
-  }
-  return (skill.kind === "path" || skill.kind === "url")
-    && (skill.scope === "project" || skill.scope === "global")
-    && typeof skill.value === "string"
-    && skill.value.trim().length > 0
-    && skill.value.length <= 4096
-    && (skill.kind !== "url" || isHttpUrl(skill.value));
 }
 
 function isCustomModelInput(value: unknown): value is CustomModelInput {

@@ -19,7 +19,6 @@ import {
   AgentOption,
   AttachmentView,
   ChatMode,
-  CustomModelInput,
   DiffView,
   McpInput,
   McpServerView,
@@ -29,12 +28,10 @@ import {
   QuestionView,
   SessionSummary,
   SkillOption,
-  SkillInput,
   UiMessage,
   UiMessagePart,
 } from "../shared/protocol";
 import { Logger } from "../services/Logger";
-import { buildCustomProviderConfig } from "./CustomProviderConfig";
 
 export interface Catalog {
   models: ModelOption[];
@@ -60,6 +57,7 @@ export interface SendInput {
 export class OpenCodeAdapter {
   private readonly client: OpencodeClient;
   private eventAbort?: AbortController;
+  private readonly sessionPresence = new Map<string, { updatedAt: number; hasMessages: boolean }>();
 
   constructor(
     endpoint: string,
@@ -83,7 +81,27 @@ export class OpenCodeAdapter {
       roots: true,
       limit: 200,
     });
-    return sessions.map(normalizeSession).sort((a, b) => b.updatedAt - a.updatedAt);
+    const normalized = sessions.map(normalizeSession);
+    const withPresence = await mapLimited(normalized, 12, async (session) => {
+      const cached = this.sessionPresence.get(session.id);
+      if (cached?.hasMessages || cached?.updatedAt === session.updatedAt) {
+        return { ...session, hasMessages: cached.hasMessages };
+      }
+      try {
+        const response = await this.client.session.messages<true>({
+          sessionID: session.id,
+          directory: this.directory,
+          limit: 1,
+        });
+        const hasMessages = response.data.length > 0;
+        this.sessionPresence.set(session.id, { updatedAt: session.updatedAt, hasMessages });
+        return { ...session, hasMessages };
+      } catch (error) {
+        this.logger.debug(`Unable to inspect session ${session.id}; retaining it in history`, error);
+        return { ...session, hasMessages: true };
+      }
+    });
+    return withPresence.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async createSession(mode: ChatMode, model?: string): Promise<SessionSummary> {
@@ -223,7 +241,7 @@ export class OpenCodeAdapter {
     await this.client.question.reject<true>({ requestID: requestId, directory: this.directory });
   }
 
-  async getMcps(): Promise<McpServerView[]> {
+  async getMcps(persistedProject: Config = {}, persistedGlobal: Config = {}): Promise<McpServerView[]> {
     const [projectResponse, globalResponse, statusResponse] = await Promise.all([
       this.client.config.get<true>({ directory: this.directory }),
       this.client.global.config.get<true>(),
@@ -232,61 +250,27 @@ export class OpenCodeAdapter {
     const projectConfig = projectResponse.data;
     const globalConfig = globalResponse.data;
     const statuses = statusResponse.data;
-    const globalMcps = configMcps(globalConfig);
-    const effectiveMcps = configMcps(projectConfig);
+    const globalMcps = { ...configMcps(globalConfig), ...configMcps(persistedGlobal) };
+    const projectMcps = configMcps(persistedProject);
+    const effectiveMcps = { ...configMcps(projectConfig), ...projectMcps };
     const names = new Set([...Object.keys(globalMcps), ...Object.keys(effectiveMcps), ...Object.keys(statuses)]);
     return [...names].sort().map((name) => {
-      const appearsGlobal = name in globalMcps;
+      const appearsGlobal = name in globalMcps && !(name in projectMcps);
       const config = effectiveMcps[name] ?? globalMcps[name];
       return normalizeMcp(name, config, statuses[name], appearsGlobal ? "global" : "project");
     });
   }
 
-  async saveMcp(input: McpInput): Promise<void> {
+  async applyMcp(input: McpInput): Promise<void> {
     const { name, scope, ...config } = input;
-    const payload = { mcp: { [name]: config } } as Config;
-    if (scope === "global") {
-      await this.client.global.config.update<true>({ config: payload });
-    } else {
-      await this.client.config.update<true>({ directory: this.directory, config: payload });
-    }
-    // Config files are startup-loaded, while the native MCP.add route updates the
-    // running instance. Use both so the server is usable now and after restart.
     await this.client.mcp.add<true>({ directory: this.directory, name, config });
+    const response = await this.client.mcp.status<true>({ directory: this.directory });
+    const status = response.data[name];
+    if (status?.status === "failed") throw new Error(`MCP 连接失败：${status.error}`);
   }
 
-  async saveSkillSource(input: Extract<SkillInput, { kind: "path" | "url" }>): Promise<void> {
-    const current = input.scope === "global"
-      ? (await this.client.global.config.get<true>()).data
-      : (await this.client.config.get<true>({ directory: this.directory })).data;
-    const key = input.kind === "path" ? "paths" : "urls";
-    const existing = current.skills?.[key] ?? [];
-    const value = input.value.trim();
-    const payload = {
-      skills: {
-        ...current.skills,
-        [key]: [...new Set([...existing, value])],
-      },
-    } as Config;
-    if (input.scope === "global") {
-      await this.client.global.config.update<true>({ config: payload });
-    } else {
-      await this.client.config.update<true>({ directory: this.directory, config: payload });
-    }
-  }
-
-  async saveCustomModel(input: CustomModelInput): Promise<void> {
-    const current = input.scope === "global"
-      ? (await this.client.global.config.get<true>()).data
-      : (await this.client.config.get<true>({ directory: this.directory })).data;
-    const existingProvider = current.provider?.[input.providerId];
-    const provider = buildCustomProviderConfig(existingProvider, input);
-    const payload = { provider: { [input.providerId.trim()]: provider } } as Config;
-    if (input.scope === "global") {
-      await this.client.global.config.update<true>({ config: payload });
-    } else {
-      await this.client.config.update<true>({ directory: this.directory, config: payload });
-    }
+  async reloadInstance(): Promise<void> {
+    await this.client.instance.dispose<true>({ directory: this.directory });
   }
 
   async connectMcp(name: string): Promise<void> {
@@ -295,6 +279,11 @@ export class OpenCodeAdapter {
 
   async disconnectMcp(name: string): Promise<void> {
     await this.client.mcp.disconnect<true>({ name, directory: this.directory });
+  }
+
+  async reconnectMcp(name: string): Promise<void> {
+    await this.client.mcp.disconnect<true>({ name, directory: this.directory });
+    await this.client.mcp.connect<true>({ name, directory: this.directory });
   }
 
   async authenticateMcp(name: string): Promise<void> {
@@ -495,6 +484,20 @@ function normalizeMcp(
     hasEnvironment: Boolean(config && "environment" in config && config.environment && Object.keys(config.environment).length),
     scope,
   };
+}
+
+async function mapLimited<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await mapper(items[index]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 function errorText(error: { name: string; data: unknown }): string {
