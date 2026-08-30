@@ -2,7 +2,9 @@ node_modules/
 opencode-raineye/node_modules/
 opencode-raineye/dist/
 opencode-raineye/.vite/
-out/
+# Keep packaged RainEye VSIX release history; ignore smoke folders/logs.
+out/*
+!out/*.vsix
 *.log
 *.tmp
 .DS_Store
