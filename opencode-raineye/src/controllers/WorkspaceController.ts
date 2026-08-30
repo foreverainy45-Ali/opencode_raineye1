@@ -161,6 +161,9 @@ export class WorkspaceController implements vscode.Disposable {
       case "delete-skill":
         await this.deleteSkill(message.name, message.scope, message.source);
         return;
+      case "remove-skill":
+        await this.removeSkill(message.name);
+        return;
       case "save-custom-model":
         await this.saveCustomModel(message.model);
         return;
@@ -647,6 +650,17 @@ export class WorkspaceController implements vscode.Disposable {
     if (!deleted) return;
     await this.refreshCatalog();
     vscode.window.showInformationMessage(`Skill “${name}” 已从 OpenCode 配置移除，原文件夹仍保留。`);
+  }
+
+  private async removeSkill(name: string): Promise<void> {
+    const skill = this.snapshot.skills.find((item) => item.name === name);
+    if (!skill) return;
+    const registration = (await this.configStore.listSkillRegistrations()).find((item) => samePath(item.resolvedPath, skillDirectoryPath(skill.location)));
+    if (!registration) {
+      vscode.window.showInformationMessage(`Skill “${name}”由 OpenCode 自动发现，未在 RainEye 配置中注册。`);
+      return;
+    }
+    await this.deleteSkill(name, registration.scope, registration.source);
   }
 
   private async validateLocalMcp(mcp: Extract<McpInput, { type: "local" }>): Promise<Extract<McpInput, { type: "local" }>> {

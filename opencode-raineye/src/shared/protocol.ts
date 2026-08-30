@@ -294,6 +294,7 @@ export type WebviewToHostMessage =
   | { type: "open-skill"; location: string }
   | { type: "reload-skills" }
   | { type: "delete-skill"; name: string; scope: "project" | "global"; source: string }
+  | { type: "remove-skill"; name: string }
   | { type: "save-custom-model"; model: CustomModelInput }
   | { type: "connect-mcp"; name: string }
   | { type: "disconnect-mcp"; name: string }
@@ -330,6 +331,8 @@ export function isWebviewMessage(value: unknown): value is WebviewToHostMessage 
       return typeof message.name === "string" && message.name.length > 0
         && (message.scope === "project" || message.scope === "global")
         && typeof message.source === "string" && message.source.length > 0;
+    case "remove-skill":
+      return typeof message.name === "string" && message.name.length > 0;
     case "search-files":
       return Number.isInteger(message.requestId)
         && Number(message.requestId) >= 0

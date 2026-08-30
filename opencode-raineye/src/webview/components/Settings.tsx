@@ -20,6 +20,15 @@ export function Settings({
   const [settings, setSettings] = useState(initial);
   const [editingMcp, setEditingMcp] = useState<McpServerView>();
   useEffect(() => setSettings(initial), [initial]);
+  useEffect(() => {
+    const closeMenus = (event: PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest(".mcp-menu")) return;
+      document.querySelectorAll<HTMLDetailsElement>(".mcp-menu[open]").forEach((menu) => { menu.open = false; });
+    };
+    document.addEventListener("pointerdown", closeMenus);
+    return () => document.removeEventListener("pointerdown", closeMenus);
+  }, []);
   return (
     <main className="page settings-page">
       <div className="page-heading"><div><h2>设置</h2><p>RainEye 与 OpenCode 官方配置</p></div><button onClick={() => post({ type: "open-output" })}>查看日志</button></div>
@@ -168,9 +177,7 @@ function SkillRow({ skill }: { skill: SkillOption }): React.JSX.Element {
         <div>
           <button onClick={() => post({ type: "open-skill", location: skill.location })}>编辑 SKILL.md</button>
           <button onClick={() => post({ type: "reload-skills" })}>重新加载</button>
-          {skill.registeredScope && skill.registeredSource
-            ? <button className="danger" onClick={() => post({ type: "delete-skill", name: skill.name, scope: skill.registeredScope!, source: skill.registeredSource! })}>移除配置</button>
-            : null}
+          <button className="danger" onClick={() => post({ type: "remove-skill", name: skill.name })}>移除 Skill</button>
         </div>
       </details>
     </div>
